@@ -1,172 +1,296 @@
-import datetime
-import random
+from __future__ import annotations
 
-import altair as alt
-import numpy as np
 import pandas as pd
 import streamlit as st
 
-# Show app title and description.
-st.set_page_config(page_title="Support tickets", page_icon="🎫")
-st.title("🎫 Support tickets")
-st.write(
-    """
-    This app shows how you can build an internal tool in Streamlit. Here, we are 
-    implementing a support ticket workflow. The user can create a ticket, edit 
-    existing tickets, and view some statistics.
-    """
+from ccs_core import (
+    add_knowledge_article,
+    authenticate,
+    create_ticket,
+    get_license_status,
+    get_metrics,
+    initialize_database,
+    list_audit_entries,
+    list_tickets,
+    record_audit,
+    search_knowledge,
+    update_ticket,
 )
 
-# Create a random Pandas dataframe with existing tickets.
-if "df" not in st.session_state:
+st.set_page_config(
+    page_title="CCS Agent Support",
+    page_icon="🤖",
+    layout="wide",
+    initial_sidebar_state="expanded",
+)
 
-    # Set seed for reproducibility.
-    np.random.seed(42)
+initialize_database()
 
-    # Make up some fake issue descriptions.
-    issue_descriptions = [
-        "Network connectivity issues in the office",
-        "Software application crashing on startup",
-        "Printer not responding to print commands",
-        "Email server downtime",
-        "Data backup failure",
-        "Login authentication problems",
-        "Website performance degradation",
-        "Security vulnerability identified",
-        "Hardware malfunction in the server room",
-        "Employee unable to access shared files",
-        "Database connection failure",
-        "Mobile application not syncing data",
-        "VoIP phone system issues",
-        "VPN connection problems for remote employees",
-        "System updates causing compatibility issues",
-        "File server running out of storage space",
-        "Intrusion detection system alerts",
-        "Inventory management system errors",
-        "Customer data not loading in CRM",
-        "Collaboration tool not sending notifications",
-    ]
-
-    # Generate the dataframe with 100 rows/tickets.
-    data = {
-        "ID": [f"TICKET-{i}" for i in range(1100, 1000, -1)],
-        "Issue": np.random.choice(issue_descriptions, size=100),
-        "Status": np.random.choice(["Open", "In Progress", "Closed"], size=100),
-        "Priority": np.random.choice(["High", "Medium", "Low"], size=100),
-        "Date Submitted": [
-            datetime.date(2023, 6, 1) + datetime.timedelta(days=random.randint(0, 182))
-            for _ in range(100)
-        ],
-    }
-    df = pd.DataFrame(data)
-
-    # Save the dataframe in session state (a dictionary-like object that persists across
-    # page runs). This ensures our data is persisted when the app updates.
-    st.session_state.df = df
+st.markdown(
+    """
+    <style>
+      .block-container {padding-top: 1.4rem; padding-bottom: 2rem;}
+      [data-testid="stMetricValue"] {font-size: 1.8rem;}
+      .ccs-title {font-size: 2rem; font-weight: 750; margin-bottom: .15rem;}
+      .ccs-subtitle {color: #52606d; margin-bottom: 1rem;}
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
 
 
-# Show a section to add a new ticket.
-st.header("Add a ticket")
-
-# We're adding tickets via an `st.form` and some input widgets. If widgets are used
-# in a form, the app will only rerun once the submit button is pressed.
-with st.form("add_ticket_form"):
-    issue = st.text_area("Describe the issue")
-    priority = st.selectbox("Priority", ["High", "Medium", "Low"])
-    submitted = st.form_submit_button("Submit")
-
-if submitted:
-    # Make a dataframe for the new ticket and append it to the dataframe in session
-    # state.
-    recent_ticket_number = int(max(st.session_state.df.ID).split("-")[1])
-    today = datetime.datetime.now().strftime("%m-%d-%Y")
-    df_new = pd.DataFrame(
-        [
-            {
-                "ID": f"TICKET-{recent_ticket_number+1}",
-                "Issue": issue,
-                "Status": "Open",
-                "Priority": priority,
-                "Date Submitted": today,
-            }
-        ]
+def login_view() -> None:
+    st.markdown('<div class="ccs-title">Compelec AI Business Platform</div>', unsafe_allow_html=True)
+    st.markdown(
+        '<div class="ccs-subtitle">CCS Agent Support · MVP Pilot</div>',
+        unsafe_allow_html=True,
     )
 
-    # Show a little success message.
-    st.write("Ticket submitted! Here are the ticket details:")
-    st.dataframe(df_new, use_container_width=True, hide_index=True)
-    st.session_state.df = pd.concat([df_new, st.session_state.df], axis=0)
+    license_status = get_license_status()
+    if license_status.valid:
+        st.info(license_status.message)
+    else:
+        st.error(license_status.message)
+        st.stop()
 
-# Show section to view and edit existing tickets in a table.
-st.header("Existing tickets")
-st.write(f"Number of tickets: `{len(st.session_state.df)}`")
+    with st.form("login_form"):
+        username = st.text_input("Benutzername", value="admin")
+        password = st.text_input("Kennwort", type="password")
+        submitted = st.form_submit_button("Anmelden", use_container_width=True)
 
-st.info(
-    "You can edit the tickets by double clicking on a cell. Note how the plots below "
-    "update automatically! You can also sort the table by clicking on the column headers.",
-    icon="✍️",
+    with st.expander("MVP-Zugänge"):
+        st.code(
+            "admin / Compelec-Start!\n"
+            "support / Support-Start!\n"
+            "demo / Demo-Start!"
+        )
+        st.caption("Kennwörter vor einem realen Pilotbetrieb zwingend ändern.")
+
+    if submitted:
+        user = authenticate(username, password)
+        if user:
+            st.session_state.user = user
+            record_audit(user["username"], "LOGIN", "session")
+            st.rerun()
+        st.error("Anmeldung fehlgeschlagen.")
+
+
+if "user" not in st.session_state:
+    login_view()
+    st.stop()
+
+user = st.session_state.user
+license_status = get_license_status()
+
+with st.sidebar:
+    st.markdown("## CCS Agent Support")
+    st.caption("Compelec AI Business Platform")
+    st.write(f"**{user['display_name']}**")
+    st.caption(f"Rolle: {user['role']}")
+    st.divider()
+
+    page = st.radio(
+        "Navigation",
+        ["Dashboard", "Tickets", "Wissensbasis", "KI-Assistent", "Audit"],
+    )
+
+    st.divider()
+    if license_status.mode == "demo":
+        st.warning("Demomodus")
+    else:
+        st.success("Lizenz aktiv")
+
+    if st.button("Abmelden", use_container_width=True):
+        record_audit(user["username"], "LOGOUT", "session")
+        st.session_state.clear()
+        st.rerun()
+
+st.markdown('<div class="ccs-title">CCS Agent Support</div>', unsafe_allow_html=True)
+st.markdown(
+    '<div class="ccs-subtitle">Kontrollierte Supportprozesse, Wissen und Nachvollziehbarkeit</div>',
+    unsafe_allow_html=True,
 )
 
-# Show the tickets dataframe with `st.data_editor`. This lets the user edit the table
-# cells. The edited data is returned as a new dataframe.
-edited_df = st.data_editor(
-    st.session_state.df,
-    use_container_width=True,
-    hide_index=True,
-    column_config={
-        "Status": st.column_config.SelectboxColumn(
+if page == "Dashboard":
+    metrics = get_metrics()
+    columns = st.columns(5)
+    columns[0].metric("Tickets gesamt", metrics["total"])
+    columns[1].metric("Offen", metrics["open"])
+    columns[2].metric("In Bearbeitung", metrics["active"])
+    columns[3].metric("Kritisch", metrics["critical"])
+    columns[4].metric("Wissensartikel", metrics["knowledge"])
+
+    st.subheader("Operativer Überblick")
+    tickets = list_tickets()
+    if tickets:
+        st.dataframe(
+            pd.DataFrame(tickets)[
+                ["ticket_no", "subject", "customer", "status", "priority", "assignee", "updated_at"]
+            ],
+            use_container_width=True,
+            hide_index=True,
+        )
+    else:
+        st.info("Noch keine Tickets vorhanden.")
+
+    st.subheader("MVP-Grenzen")
+    st.write(
+        "Dieser Stand ist ein belastbarer Pilotkern. Noch nicht enthalten sind "
+        "Produktiv-SSO, PostgreSQL/pgvector, E-Mail-Integration, Signierung, "
+        "mandantenfähige Rechteverwaltung und ein echter LLM-Provider."
+    )
+
+elif page == "Tickets":
+    st.subheader("Ticket erfassen")
+    if user["role"] == "viewer":
+        st.info("Viewer dürfen Tickets einsehen, aber nicht verändern.")
+    else:
+        with st.form("create_ticket_form", clear_on_submit=True):
+            col1, col2 = st.columns(2)
+            customer = col1.text_input("Kunde / Organisation")
+            priority = col2.selectbox("Priorität", ["Mittel", "Hoch", "Niedrig"])
+            subject = st.text_input("Betreff")
+            description = st.text_area("Fehlerbild / Anforderung", height=130)
+            submitted = st.form_submit_button("Ticket anlegen")
+        if submitted:
+            try:
+                ticket_no = create_ticket(
+                    subject=subject,
+                    description=description,
+                    customer=customer,
+                    priority=priority,
+                    actor=user["username"],
+                )
+                st.success(f"Ticket {ticket_no} wurde angelegt.")
+            except ValueError as exc:
+                st.error(str(exc))
+
+    st.subheader("Tickets bearbeiten")
+    tickets = list_tickets()
+    if not tickets:
+        st.info("Noch keine Tickets vorhanden.")
+    else:
+        selected_ticket = st.selectbox(
+            "Ticket auswählen",
+            tickets,
+            format_func=lambda item: f"{item['ticket_no']} · {item['subject']}",
+        )
+        st.write(selected_ticket["description"])
+        col1, col2, col3 = st.columns(3)
+        status = col1.selectbox(
             "Status",
-            help="Ticket status",
-            options=["Open", "In Progress", "Closed"],
-            required=True,
-        ),
-        "Priority": st.column_config.SelectboxColumn(
-            "Priority",
-            help="Priority",
-            options=["High", "Medium", "Low"],
-            required=True,
-        ),
-    },
-    # Disable editing the ID and Date Submitted columns.
-    disabled=["ID", "Date Submitted"],
-)
+            ["Offen", "In Bearbeitung", "Gelöst"],
+            index=["Offen", "In Bearbeitung", "Gelöst"].index(selected_ticket["status"]),
+            disabled=user["role"] == "viewer",
+        )
+        priority = col2.selectbox(
+            "Priorität",
+            ["Hoch", "Mittel", "Niedrig"],
+            index=["Hoch", "Mittel", "Niedrig"].index(selected_ticket["priority"]),
+            disabled=user["role"] == "viewer",
+        )
+        assignee = col3.text_input(
+            "Bearbeiter",
+            value=selected_ticket["assignee"] or "",
+            disabled=user["role"] == "viewer",
+        )
+        if st.button("Änderungen speichern", disabled=user["role"] == "viewer"):
+            update_ticket(
+                ticket_no=selected_ticket["ticket_no"],
+                status=status,
+                priority=priority,
+                assignee=assignee,
+                actor=user["username"],
+            )
+            st.success("Ticket wurde aktualisiert.")
+            st.rerun()
 
-# Show some metrics and charts about the ticket.
-st.header("Statistics")
+        with st.expander("Gesamtliste"):
+            st.dataframe(pd.DataFrame(tickets), use_container_width=True, hide_index=True)
 
-# Show metrics side by side using `st.columns` and `st.metric`.
-col1, col2, col3 = st.columns(3)
-num_open_tickets = len(st.session_state.df[st.session_state.df.Status == "Open"])
-col1.metric(label="Number of open tickets", value=num_open_tickets, delta=10)
-col2.metric(label="First response time (hours)", value=5.2, delta=-1.5)
-col3.metric(label="Average resolution time (hours)", value=16, delta=2)
+elif page == "Wissensbasis":
+    st.subheader("Wissen durchsuchen")
+    query = st.text_input("Suchbegriffe", placeholder="z. B. Datenbank Verbindung")
+    results = search_knowledge(query)
 
-# Show two Altair charts using `st.altair_chart`.
-st.write("")
-st.write("##### Ticket status per month")
-status_plot = (
-    alt.Chart(edited_df)
-    .mark_bar()
-    .encode(
-        x="month(Date Submitted):O",
-        y="count():Q",
-        xOffset="Status:N",
-        color="Status:N",
+    if results:
+        for article in results:
+            with st.expander(f"{article['title']} · {article['category']}"):
+                st.write(article["content"])
+                st.caption(
+                    f"Quelle: {article.get('source') or 'nicht angegeben'} · "
+                    f"Erfasst von: {article['created_by']}"
+                )
+    else:
+        st.warning("Keine passenden Wissenseinträge gefunden.")
+
+    if user["role"] == "admin":
+        st.subheader("Wissensartikel ergänzen")
+        with st.form("knowledge_form", clear_on_submit=True):
+            title = st.text_input("Titel")
+            col1, col2 = st.columns(2)
+            category = col1.text_input("Kategorie", value="Support")
+            source = col2.text_input("Quelle")
+            content = st.text_area("Inhalt", height=150)
+            submitted = st.form_submit_button("Artikel speichern")
+        if submitted:
+            try:
+                article_id = add_knowledge_article(
+                    title=title,
+                    category=category,
+                    content=content,
+                    source=source,
+                    actor=user["username"],
+                )
+                st.success(f"Wissensartikel {article_id} wurde gespeichert.")
+            except ValueError as exc:
+                st.error(str(exc))
+
+elif page == "KI-Assistent":
+    st.subheader("Kontrollierter Support-Assistent")
+    st.info(
+        "Der MVP arbeitet bewusst ohne externen KI-Provider. Er liefert nachvollziehbare "
+        "Antwortentwürfe ausschließlich aus der lokalen Wissensbasis."
     )
-    .configure_legend(
-        orient="bottom", titleFontSize=14, labelFontSize=14, titlePadding=5
+    question = st.text_area(
+        "Supportfrage",
+        placeholder="Beschreibe das Problem und den gewünschten nächsten Schritt.",
+        height=130,
     )
-)
-st.altair_chart(status_plot, use_container_width=True, theme="streamlit")
+    if st.button("Antwortentwurf erzeugen"):
+        results = search_knowledge(question)
+        record_audit(
+            user["username"],
+            "GENERATE_DRAFT",
+            "assistant",
+            details=question[:500],
+        )
+        if not results:
+            st.warning(
+                "Kein belastbarer Wissensbezug gefunden. Fall als Ticket erfassen und "
+                "fachlich prüfen lassen."
+            )
+        else:
+            top_results = results[:3]
+            st.markdown("### Antwortentwurf")
+            st.write(
+                "Auf Basis der freigegebenen Wissensbasis sollten zunächst folgende "
+                "Prüfschritte durchgeführt werden:"
+            )
+            for index, article in enumerate(top_results, start=1):
+                st.write(f"{index}. **{article['title']}** – {article['content']}")
+            st.warning(
+                "Vor Versand fachlich prüfen. Der Entwurf ersetzt keine technische "
+                "Freigabe und führt keine Aktionen selbstständig aus."
+            )
 
-st.write("##### Current ticket priorities")
-priority_plot = (
-    alt.Chart(edited_df)
-    .mark_arc()
-    .encode(theta="count():Q", color="Priority:N")
-    .properties(height=300)
-    .configure_legend(
-        orient="bottom", titleFontSize=14, labelFontSize=14, titlePadding=5
-    )
-)
-st.altair_chart(priority_plot, use_container_width=True, theme="streamlit")
+elif page == "Audit":
+    st.subheader("Audit-Protokoll")
+    if user["role"] != "admin":
+        st.warning("Das Audit-Protokoll ist nur für Administratoren sichtbar.")
+    else:
+        entries = list_audit_entries()
+        if entries:
+            st.dataframe(pd.DataFrame(entries), use_container_width=True, hide_index=True)
+        else:
+            st.info("Noch keine Audit-Einträge vorhanden.")
