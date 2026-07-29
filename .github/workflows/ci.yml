@@ -1,0 +1,35 @@
+name: CCS Support CI
+
+on:
+  push:
+    branches:
+      - main
+      - agent/**
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: python -m pip install --upgrade pip && pip install -r requirements.txt
+
+      - name: Compile Python sources
+        run: python -m py_compile ccs_core.py knowledge_ai.py streamlit_app.py
+
+      - name: Run unit tests
+        run: python -m unittest discover -s tests -v
