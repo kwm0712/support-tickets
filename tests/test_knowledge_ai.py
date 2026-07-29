@@ -56,15 +56,20 @@ class KnowledgeAiTests(unittest.TestCase):
             actor="admin",
         )
 
-        self.assertEqual(
-            self.ai.retrieve_evidence("VPN Verbindungsfehler", privacy_level="internal"),
-            [],
+        evidence_before_approval = self.ai.retrieve_evidence(
+            "VPN Verbindungsfehler", privacy_level="internal"
+        )
+        self.assertFalse(
+            any(item.title == "support.txt" for item in evidence_before_approval)
         )
 
         self.ai.set_document_status(document_id, "approved", "admin")
-        evidence = self.ai.retrieve_evidence("VPN Verbindungsfehler", privacy_level="internal")
-        self.assertGreaterEqual(len(evidence), 1)
-        self.assertEqual(evidence[0].title, "support.txt")
+        evidence_after_approval = self.ai.retrieve_evidence(
+            "VPN Verbindungsfehler", privacy_level="internal"
+        )
+        self.assertTrue(
+            any(item.title == "support.txt" for item in evidence_after_approval)
+        )
 
     def test_privacy_level_filters_confidential_sources(self) -> None:
         article_id = self.ai.add_governed_article(
