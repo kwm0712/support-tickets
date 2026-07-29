@@ -7,12 +7,18 @@ import secrets
 import sqlite3
 from contextlib import contextmanager
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Iterator, Optional
 
 APP_DIR = Path(os.getenv("CCS_DATA_DIR", Path(__file__).parent / "data"))
 DB_PATH = APP_DIR / "ccs_support.db"
+
+DEMO_USERS = (
+    ("admin", "CCS Administrator", "admin", "CCS_ADMIN_PASSWORD", "Compelec-Start!"),
+    ("support", "Support Agent", "agent", "CCS_SUPPORT_PASSWORD", "Support-Start!"),
+    ("demo", "Demo Viewer", "viewer", "CCS_VIEWER_PASSWORD", "Demo-Start!"),
+)
 
 
 @dataclass(frozen=True)
@@ -24,7 +30,7 @@ class LicenseStatus:
 
 
 def _utc_now() -> str:
-    return datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
+    return datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
 @contextmanager
@@ -55,7 +61,58 @@ def _verify_password(password: str, salt: str, expected_hash: str) -> bool:
     return hmac.compare_digest(actual_hash, expected_hash)
 
 
+def _validate_configured_password(password: str, variable_name: str) -> None:
+    if len(password) < 12:
+        raise RuntimeError(f"{variable_name} muss mindestens 12 Zeichen enthalten.")
+
+
+def _seed_password(environment_name: str, demo_password: str, licensed: bool) -> str:
+    configured = os.getenv(environment_name, "")
+    if configured:
+        _validate_configured_password(configured, environment_name)
+        return configured
+    if licensed:
+        raise RuntimeError(
+            f"Im Lizenzmodus muss {environment_name} vor dem ersten Start gesetzt sein."
+        )
+    return demo_password
+
+
+def _apply_configured_passwords(db: sqlite3.Connection, licensed: bool) -> None:
+    """Apply explicit password environment variables and reject demo credentials in licensed mode."""
+    for username, _display_name, _role, environment_name, demo_password in DEMO_USERS:
+        configured = os.getenv(environment_name, "")
+        row = db.execute(
+            "SELECT password_salt, password_hash FROM users WHERE username = ?",
+            (username,),
+        ).fetchone()
+        if row is None:
+            continue
+
+        if configured:
+            _validate_configured_password(configured, environment_name)
+            if not _verify_password(configured, row["password_salt"], row["password_hash"]):
+                salt, password_hash = _hash_password(configured)
+                db.execute(
+                    "UPDATE users SET password_salt = ?, password_hash = ? WHERE username = ?",
+                    (salt, password_hash, username),
+                )
+            row = db.execute(
+                "SELECT password_salt, password_hash FROM users WHERE username = ?",
+                (username,),
+            ).fetchone()
+
+        if licensed and _verify_password(
+            demo_password, row["password_salt"], row["password_hash"]
+        ):
+            raise RuntimeError(
+                f"Lizenzmodus blockiert: Für Benutzer '{username}' ist noch ein Demo-Kennwort aktiv. "
+                f"Setze {environment_name} auf ein starkes Kennwort."
+            )
+
+
 def initialize_database() -> None:
+    licensed = os.getenv("CCS_LICENSE_MODE", "demo").strip().lower() == "licensed"
     with db_connection() as db:
         db.executescript(
             """
@@ -108,11 +165,8 @@ def initialize_database() -> None:
 
         user_count = db.execute("SELECT COUNT(*) AS count FROM users").fetchone()["count"]
         if user_count == 0:
-            for username, display_name, role, password in (
-                ("admin", "CCS Administrator", "admin", "Compelec-Start!"),
-                ("support", "Support Agent", "agent", "Support-Start!"),
-                ("demo", "Demo Viewer", "viewer", "Demo-Start!"),
-            ):
+            for username, display_name, role, environment_name, demo_password in DEMO_USERS:
+                password = _seed_password(environment_name, demo_password, licensed)
                 salt, password_hash = _hash_password(password)
                 db.execute(
                     """
@@ -122,6 +176,8 @@ def initialize_database() -> None:
                     """,
                     (username, display_name, role, salt, password_hash, _utc_now()),
                 )
+        else:
+            _apply_configured_passwords(db, licensed)
 
         article_count = db.execute(
             "SELECT COUNT(*) AS count FROM knowledge_articles"
