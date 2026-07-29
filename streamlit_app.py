@@ -36,8 +36,12 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-initialize_database()
-initialize_knowledge_ai()
+try:
+    initialize_database()
+    initialize_knowledge_ai()
+except RuntimeError as exc:
+    st.error(f"Sicherheits- oder Konfigurationsfehler: {exc}")
+    st.stop()
 
 st.markdown(
     """
@@ -84,13 +88,14 @@ def login_view() -> None:
         password = st.text_input("Kennwort", type="password")
         submitted = st.form_submit_button("Anmelden", use_container_width=True)
 
-    with st.expander("MVP-Zugänge"):
-        st.code(
-            "admin / Compelec-Start!\n"
-            "support / Support-Start!\n"
-            "demo / Demo-Start!"
-        )
-        st.caption("Kennwörter vor einem realen Pilotbetrieb zwingend ändern.")
+    if license_status.mode == "demo":
+        with st.expander("MVP-Zugänge"):
+            st.code(
+                "admin / Compelec-Start!\n"
+                "support / Support-Start!\n"
+                "demo / Demo-Start!"
+            )
+            st.caption("Diese Zugänge sind ausschließlich im Demomodus verfügbar.")
 
     if submitted:
         user = authenticate(username, password)
