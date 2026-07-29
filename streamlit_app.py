@@ -4,7 +4,6 @@ import pandas as pd
 import streamlit as st
 
 from ccs_core import (
-    add_knowledge_article,
     authenticate,
     create_ticket,
     get_license_status,
@@ -13,8 +12,21 @@ from ccs_core import (
     list_audit_entries,
     list_tickets,
     record_audit,
-    search_knowledge,
     update_ticket,
+)
+from knowledge_ai import (
+    APPROVAL_STATUSES,
+    PRIVACY_LEVELS,
+    add_governed_article,
+    generate_assistant_answer,
+    import_document,
+    initialize_knowledge_ai,
+    list_assistant_runs,
+    list_documents,
+    list_governed_articles,
+    search_governed_knowledge,
+    set_article_status,
+    set_document_status,
 )
 
 st.set_page_config(
@@ -25,6 +37,7 @@ st.set_page_config(
 )
 
 initialize_database()
+initialize_knowledge_ai()
 
 st.markdown(
     """
@@ -33,16 +46,29 @@ st.markdown(
       [data-testid="stMetricValue"] {font-size: 1.8rem;}
       .ccs-title {font-size: 2rem; font-weight: 750; margin-bottom: .15rem;}
       .ccs-subtitle {color: #52606d; margin-bottom: 1rem;}
+      .ccs-badge {display:inline-block; padding:.2rem .55rem; border-radius:.4rem;
+                  background:#e8f3fa; margin-right:.35rem; font-size:.82rem;}
     </style>
     """,
     unsafe_allow_html=True,
 )
 
+STATUS_LABELS = {
+    "draft": "Entwurf",
+    "approved": "Freigegeben",
+    "rejected": "Abgelehnt",
+}
+PRIVACY_LABELS = {
+    "public": "Öffentlich",
+    "internal": "Intern",
+    "confidential": "Vertraulich",
+}
+
 
 def login_view() -> None:
     st.markdown('<div class="ccs-title">Compelec AI Business Platform</div>', unsafe_allow_html=True)
     st.markdown(
-        '<div class="ccs-subtitle">CCS Agent Support · MVP Pilot</div>',
+        '<div class="ccs-subtitle">CCS Agent Support · Knowledge & AI Core 0.2</div>',
         unsafe_allow_html=True,
     )
 
@@ -84,14 +110,14 @@ license_status = get_license_status()
 
 with st.sidebar:
     st.markdown("## CCS Agent Support")
-    st.caption("Compelec AI Business Platform")
+    st.caption("Compelec AI Business Platform · 0.2.0")
     st.write(f"**{user['display_name']}**")
     st.caption(f"Rolle: {user['role']}")
     st.divider()
 
     page = st.radio(
         "Navigation",
-        ["Dashboard", "Tickets", "Wissensbasis", "KI-Assistent", "Audit"],
+        ["Dashboard", "Tickets", "Wissensbasis", "Dokumente", "KI-Assistent", "Audit"],
     )
 
     st.divider()
@@ -100,6 +126,7 @@ with st.sidebar:
     else:
         st.success("Lizenz aktiv")
 
+    st.caption("Aktiver Provider: local-evidence")
     if st.button("Abmelden", use_container_width=True):
         record_audit(user["username"], "LOGOUT", "session")
         st.session_state.clear()
@@ -107,18 +134,25 @@ with st.sidebar:
 
 st.markdown('<div class="ccs-title">CCS Agent Support</div>', unsafe_allow_html=True)
 st.markdown(
-    '<div class="ccs-subtitle">Kontrollierte Supportprozesse, Wissen und Nachvollziehbarkeit</div>',
+    '<div class="ccs-subtitle">Kontrollierte Supportprozesse, Wissen und quellengebundene Assistenz</div>',
     unsafe_allow_html=True,
 )
 
 if page == "Dashboard":
     metrics = get_metrics()
-    columns = st.columns(5)
+    documents = list_documents()
+    articles = list_governed_articles(include_unapproved=True)
+    assistant_runs = list_assistant_runs(limit=500)
+    approved_sources = sum(1 for item in documents if item["approval_status"] == "approved")
+    approved_sources += sum(1 for item in articles if item["approval_status"] == "approved")
+
+    columns = st.columns(6)
     columns[0].metric("Tickets gesamt", metrics["total"])
     columns[1].metric("Offen", metrics["open"])
     columns[2].metric("In Bearbeitung", metrics["active"])
     columns[3].metric("Kritisch", metrics["critical"])
-    columns[4].metric("Wissensartikel", metrics["knowledge"])
+    columns[4].metric("Freigegebene Quellen", approved_sources)
+    columns[5].metric("Assistenzläufe", len(assistant_runs))
 
     st.subheader("Operativer Überblick")
     tickets = list_tickets()
@@ -133,11 +167,16 @@ if page == "Dashboard":
     else:
         st.info("Noch keine Tickets vorhanden.")
 
-    st.subheader("MVP-Grenzen")
-    st.write(
-        "Dieser Stand ist ein belastbarer Pilotkern. Noch nicht enthalten sind "
-        "Produktiv-SSO, PostgreSQL/pgvector, E-Mail-Integration, Signierung, "
-        "mandantenfähige Rechteverwaltung und ein echter LLM-Provider."
+    st.subheader("Governance-Status")
+    pending_documents = sum(1 for item in documents if item["approval_status"] == "draft")
+    pending_articles = sum(1 for item in articles if item["approval_status"] == "draft")
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Dokumente zur Prüfung", pending_documents)
+    col2.metric("Artikel zur Prüfung", pending_articles)
+    col3.metric("Aktiver KI-Provider", "Lokal")
+    st.info(
+        "Version 0.2 nutzt ausschließlich lokal gespeicherte und freigegebene Quellen. "
+        "Externe KI-Aufrufe sind technisch nicht aktiviert."
     )
 
 elif page == "Tickets":
@@ -209,9 +248,16 @@ elif page == "Tickets":
             st.dataframe(pd.DataFrame(tickets), use_container_width=True, hide_index=True)
 
 elif page == "Wissensbasis":
-    st.subheader("Wissen durchsuchen")
-    query = st.text_input("Suchbegriffe", placeholder="z. B. Datenbank Verbindung")
-    results = search_knowledge(query)
+    st.subheader("Freigegebenes Wissen durchsuchen")
+    col1, col2 = st.columns([3, 1])
+    query = col1.text_input("Suchbegriffe", placeholder="z. B. Datenbank Verbindung")
+    privacy_level = col2.selectbox(
+        "Max. Datenschutzstufe",
+        PRIVACY_LEVELS,
+        index=1,
+        format_func=lambda value: PRIVACY_LABELS[value],
+    )
+    results = search_governed_knowledge(query, privacy_level=privacy_level)
 
     if results:
         for article in results:
@@ -219,38 +265,147 @@ elif page == "Wissensbasis":
                 st.write(article["content"])
                 st.caption(
                     f"Quelle: {article.get('source') or 'nicht angegeben'} · "
-                    f"Erfasst von: {article['created_by']}"
+                    f"Datenschutz: {PRIVACY_LABELS[article['privacy_level']]} · "
+                    f"Status: {STATUS_LABELS[article['approval_status']]}"
                 )
     else:
-        st.warning("Keine passenden Wissenseinträge gefunden.")
+        st.warning("Keine passenden freigegebenen Wissenseinträge gefunden.")
 
     if user["role"] == "admin":
-        st.subheader("Wissensartikel ergänzen")
+        st.subheader("Wissensartikel erfassen")
         with st.form("knowledge_form", clear_on_submit=True):
             title = st.text_input("Titel")
             col1, col2 = st.columns(2)
             category = col1.text_input("Kategorie", value="Support")
             source = col2.text_input("Quelle")
+            col3, col4 = st.columns(2)
+            approval_status = col3.selectbox(
+                "Freigabestatus",
+                APPROVAL_STATUSES,
+                index=0,
+                format_func=lambda value: STATUS_LABELS[value],
+            )
+            article_privacy = col4.selectbox(
+                "Datenschutzstufe",
+                PRIVACY_LEVELS,
+                index=1,
+                format_func=lambda value: PRIVACY_LABELS[value],
+            )
             content = st.text_area("Inhalt", height=150)
             submitted = st.form_submit_button("Artikel speichern")
         if submitted:
             try:
-                article_id = add_knowledge_article(
+                article_id = add_governed_article(
                     title=title,
                     category=category,
                     content=content,
                     source=source,
+                    approval_status=approval_status,
+                    privacy_level=article_privacy,
                     actor=user["username"],
                 )
                 st.success(f"Wissensartikel {article_id} wurde gespeichert.")
+                st.rerun()
             except ValueError as exc:
                 st.error(str(exc))
 
+        all_articles = list_governed_articles(include_unapproved=True)
+        if all_articles:
+            st.subheader("Artikelprüfung")
+            selected = st.selectbox(
+                "Artikel auswählen",
+                all_articles,
+                format_func=lambda item: (
+                    f"#{item['id']} · {item['title']} · {STATUS_LABELS[item['approval_status']]}"
+                ),
+            )
+            new_status = st.selectbox(
+                "Neuer Status",
+                APPROVAL_STATUSES,
+                index=APPROVAL_STATUSES.index(selected["approval_status"]),
+                format_func=lambda value: STATUS_LABELS[value],
+                key="article_status",
+            )
+            if st.button("Artikelstatus speichern"):
+                set_article_status(selected["id"], new_status, user["username"])
+                st.success("Freigabestatus wurde aktualisiert.")
+                st.rerun()
+
+elif page == "Dokumente":
+    st.subheader("Dokumenten-RAG vorbereiten")
+    st.write(
+        "TXT-, PDF- und DOCX-Dateien werden lokal extrahiert, segmentiert und zunächst als "
+        "Entwurf gespeichert. Erst freigegebene Dokumente stehen dem Assistenten zur Verfügung."
+    )
+
+    if user["role"] == "admin":
+        with st.form("document_import_form", clear_on_submit=True):
+            uploaded = st.file_uploader("Dokument", type=["txt", "pdf", "docx"])
+            col1, col2 = st.columns(2)
+            category = col1.text_input("Kategorie", value="Support")
+            source = col2.text_input("Quellenbezeichnung")
+            document_privacy = st.selectbox(
+                "Datenschutzstufe",
+                PRIVACY_LEVELS,
+                index=1,
+                format_func=lambda value: PRIVACY_LABELS[value],
+            )
+            submitted = st.form_submit_button("Dokument importieren")
+        if submitted:
+            if uploaded is None:
+                st.error("Bitte ein Dokument auswählen.")
+            else:
+                try:
+                    document_id = import_document(
+                        filename=uploaded.name,
+                        data=uploaded.getvalue(),
+                        category=category,
+                        source=source,
+                        privacy_level=document_privacy,
+                        actor=user["username"],
+                    )
+                    st.success(f"Dokument {document_id} wurde als Entwurf importiert.")
+                    st.rerun()
+                except (ValueError, RuntimeError) as exc:
+                    st.error(str(exc))
+    else:
+        st.info("Dokumentimport und Freigabe sind Administratoren vorbehalten.")
+
+    documents = list_documents()
+    if not documents:
+        st.info("Noch keine Dokumente importiert.")
+    else:
+        st.dataframe(pd.DataFrame(documents), use_container_width=True, hide_index=True)
+        if user["role"] == "admin":
+            selected_document = st.selectbox(
+                "Dokument zur Prüfung",
+                documents,
+                format_func=lambda item: (
+                    f"#{item['id']} · {item['filename']} · {STATUS_LABELS[item['approval_status']]}"
+                ),
+            )
+            document_status = st.selectbox(
+                "Neuer Dokumentstatus",
+                APPROVAL_STATUSES,
+                index=APPROVAL_STATUSES.index(selected_document["approval_status"]),
+                format_func=lambda value: STATUS_LABELS[value],
+            )
+            if st.button("Dokumentstatus speichern"):
+                set_document_status(selected_document["id"], document_status, user["username"])
+                st.success("Dokumentstatus wurde aktualisiert.")
+                st.rerun()
+
 elif page == "KI-Assistent":
-    st.subheader("Kontrollierter Support-Assistent")
+    st.subheader("Quellengebundener Support-Assistent")
     st.info(
-        "Der MVP arbeitet bewusst ohne externen KI-Provider. Er liefert nachvollziehbare "
-        "Antwortentwürfe ausschließlich aus der lokalen Wissensbasis."
+        "Aktiver Provider: local-evidence. Es erfolgt kein externer API-Aufruf. "
+        "Verwendet werden ausschließlich freigegebene Quellen innerhalb der gewählten Datenschutzstufe."
+    )
+    privacy_level = st.selectbox(
+        "Datenschutzstufe der Anfrage",
+        PRIVACY_LEVELS,
+        index=1,
+        format_func=lambda value: PRIVACY_LABELS[value],
     )
     question = st.text_area(
         "Supportfrage",
@@ -258,31 +413,35 @@ elif page == "KI-Assistent":
         height=130,
     )
     if st.button("Antwortentwurf erzeugen"):
-        results = search_knowledge(question)
-        record_audit(
-            user["username"],
-            "GENERATE_DRAFT",
-            "assistant",
-            details=question[:500],
-        )
-        if not results:
-            st.warning(
-                "Kein belastbarer Wissensbezug gefunden. Fall als Ticket erfassen und "
-                "fachlich prüfen lassen."
+        try:
+            response = generate_assistant_answer(
+                question=question,
+                privacy_level=privacy_level,
+                actor=user["username"],
             )
-        else:
-            top_results = results[:3]
             st.markdown("### Antwortentwurf")
-            st.write(
-                "Auf Basis der freigegebenen Wissensbasis sollten zunächst folgende "
-                "Prüfschritte durchgeführt werden:"
+            st.markdown(response.answer)
+            st.caption(
+                f"Lauf #{response.run_id} · Provider: {response.provider} · "
+                f"Datenschutz: {PRIVACY_LABELS[response.privacy_level]}"
             )
-            for index, article in enumerate(top_results, start=1):
-                st.write(f"{index}. **{article['title']}** – {article['content']}")
-            st.warning(
-                "Vor Versand fachlich prüfen. Der Entwurf ersetzt keine technische "
-                "Freigabe und führt keine Aktionen selbstständig aus."
-            )
+            if response.evidence:
+                st.markdown("### Verwendete Quellen")
+                for index, evidence in enumerate(response.evidence, start=1):
+                    with st.expander(f"{index}. {evidence.title} · Score {evidence.score}"):
+                        st.write(evidence.content)
+                        st.caption(
+                            f"Quelle: {evidence.source} · Typ: {evidence.source_type} · "
+                            f"Datenschutz: {PRIVACY_LABELS[evidence.privacy_level]}"
+                        )
+        except ValueError as exc:
+            st.error(str(exc))
+
+    if user["role"] == "admin":
+        runs = list_assistant_runs(limit=50)
+        if runs:
+            with st.expander("Letzte Assistenzläufe"):
+                st.dataframe(pd.DataFrame(runs), use_container_width=True, hide_index=True)
 
 elif page == "Audit":
     st.subheader("Audit-Protokoll")
