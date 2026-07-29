@@ -12,7 +12,10 @@
 - Provider-Abstraktion eingeführt; ausschließlich `local-evidence` freigegeben
 - Assistenzläufe mit Frage, Antwort, Provider, Datenschutzstufe und Quellen protokolliert
 - Oberfläche um Dokumentenprüfung, Governance-Kennzahlen und Quellenanzeige erweitert
-- Unit-Tests für Freigabelogik, Datenschutzfilter, Dokumentabruf und Provider-Sperre ergänzt
+- Lizenzmodus durch verpflichtende Kennwortvariablen und Mindestlänge gehärtet
+- Wechsel mit aktiven Demo-Kennwörtern in den Lizenzmodus wird blockiert
+- Demo-Zugangsdaten werden ausschließlich im Demomodus angezeigt
+- Unit-Tests für Freigabelogik, Datenschutzfilter, Dokumentabruf, Provider-Sperre und Lizenzkennwörter ergänzt
 - GitHub-Actions-CI für Kompilierung und Tests ergänzt
 
 ### Bekannte Grenzen
