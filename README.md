@@ -11,6 +11,7 @@ Der Branch `agent/ccs-agent-support-mvp` enthält den lauffähigen Pilotkern **C
 - Ticketanlage, Priorisierung, Bearbeitung und Kennzahlen
 - Audit-Protokoll für Anmeldung, Änderungen, Import, Freigabe und Assistenzläufe
 - Demo-/Lizenzstatus über Umgebungsvariablen
+- abgesicherter Lizenzstart ohne bekannte Demo-Kennwörter
 
 ### Knowledge & AI Core
 
@@ -49,7 +50,9 @@ pip install -r requirements.txt
 streamlit run streamlit_app.py
 ```
 
-## MVP-Zugänge
+## Demo-Zugänge
+
+Diese Startzugänge werden nur im Demomodus angelegt und in der Oberfläche angezeigt:
 
 | Rolle | Benutzer | Kennwort |
 |---|---|---|
@@ -57,23 +60,39 @@ streamlit run streamlit_app.py
 | Support | `support` | `Support-Start!` |
 | Lesemodus | `demo` | `Demo-Start!` |
 
-**Wichtig:** Diese Startkennwörter dienen ausschließlich der lokalen Pilotierung und müssen vor einem realen Betrieb ersetzt werden.
+**Wichtig:** Die Demo-Zugänge dürfen nicht für Kunden- oder Produktivdaten eingesetzt werden.
 
 ## Konfiguration
 
-Optionale Umgebungsvariablen:
+Beispielvariablen:
 
 ```text
 CCS_DATA_DIR=/pfad/zu/daten
 CCS_LICENSE_MODE=demo
 CCS_LICENSE_EXPIRES=2026-12-31
+CCS_ADMIN_PASSWORD=ein-starkes-administrator-kennwort
+CCS_SUPPORT_PASSWORD=ein-starkes-support-kennwort
+CCS_VIEWER_PASSWORD=ein-starkes-viewer-kennwort
 ```
 
-Für einen lizenzierten Pilotbetrieb:
+### Lizenzmodus
+
+Für einen lizenzierten Pilotbetrieb müssen vor dem ersten Start alle drei Kennwortvariablen explizit gesetzt werden:
 
 ```text
 CCS_LICENSE_MODE=licensed
+CCS_ADMIN_PASSWORD=ein-starkes-administrator-kennwort
+CCS_SUPPORT_PASSWORD=ein-starkes-support-kennwort
+CCS_VIEWER_PASSWORD=ein-starkes-viewer-kennwort
 ```
+
+Sicherheitsregeln:
+
+- jedes konfigurierte Kennwort muss mindestens 12 Zeichen enthalten
+- fehlende Kennwortvariablen blockieren den ersten Start im Lizenzmodus
+- vorhandene Demo-Kennwörter blockieren den Wechsel einer bestehenden Datenbank in den Lizenzmodus
+- explizit gesetzte Kennwortvariablen aktualisieren die lokalen Pilotkonten
+- Demo-Zugangsdaten werden im Lizenzmodus nicht angezeigt
 
 ## Dokumentenprozess
 
@@ -93,7 +112,7 @@ python -m py_compile ccs_core.py knowledge_ai.py streamlit_app.py
 python -m unittest discover -s tests -v
 ```
 
-Die CI führt dieselben Prüfungen bei Änderungen am Entwicklungszweig und bei Pull Requests aus.
+Der aktuelle Testkatalog umfasst 11 Prüfungen für Anmeldung, Ticketkern, Wissenssuche, Freigabestatus, Datenschutzfilter, Dokumentabruf, Assistenzprotokoll, Provider-Sperre und Kennwortschutz im Lizenzmodus. Die CI führt Kompilierung und Tests bei regulären Push- und Pull-Request-Ereignissen aus.
 
 ## Sicherheits- und Produktgrenzen
 
