@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import unittest
+from pathlib import Path
 
 from architecture import TenantContext
 from postgres_repository import PostgresRepository
@@ -18,6 +19,16 @@ class PostgresRepositoryV03Tests(unittest.TestCase):
         except ImportError as exc:
             raise unittest.SkipTest("psycopg ist nicht installiert.") from exc
         cls.psycopg = psycopg
+
+        migration_path = (
+            Path(__file__).resolve().parents[1]
+            / "migrations"
+            / "postgres"
+            / "0001_v03_core.sql"
+        )
+        migration_sql = migration_path.read_text(encoding="utf-8")
+        with cls.psycopg.connect(cls.database_url, autocommit=True) as connection:
+            connection.execute(migration_sql)
 
     def setUp(self) -> None:
         with self.psycopg.connect(self.database_url) as connection:
