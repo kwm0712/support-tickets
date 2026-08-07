@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.3.0-dev
+
+- zentrale Rollen-/Berechtigungsmatrix und Tenant-Kontext eingeführt
+- Datenschutzobergrenzen an Rollen gekoppelt
+- strikte Cross-Tenant-Sperre ohne impliziten Admin-Bypass ergänzt
+- `EmbeddingProvider`-Vertrag mit lokalem deterministischem Testprovider eingeführt
+- PostgreSQL-Kernschema mit pgvector-Unterstützung und `tenant_key` ergänzt
+- normalisierte Assistant-Evidenzen und strukturierteres Audit-Schema ergänzt
+- tenant-gescopter PostgreSQL-Repository-Adapter für Ticket- und Audit-Basis eingeführt
+- race-sichere Ticketnummern über PostgreSQL-Sequenz umgesetzt
+- PostgreSQL-/pgvector-Integrationstests und negative RBAC-/Tenant-Tests ergänzt
+- GitHub-Actions-CI um echten pgvector/PostgreSQL-Service erweitert
+- Version auf `0.3.0-dev` angehoben
+
+### Noch offen bis 0.3.0-mvp
+
+- vollständige Verdrahtung der bestehenden 0.2-Funktionen auf die Repository-Schicht
+- PostgreSQL-Adapter für Knowledge, Documents, Chunks und Assistant Runs
+- SQLite-zu-PostgreSQL-Migrationspfad
+- Hybrid Retrieval aus lexikalischer und Vektorsuche
+- REST-Service-Grenze und Windows-Paketierung
+
 ## 0.2.0-mvp
 
 - additive Datenbankmigration für Knowledge Governance ergänzt
