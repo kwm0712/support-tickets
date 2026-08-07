@@ -54,3 +54,18 @@ jobs:
 
       - name: Run unit and PostgreSQL integration tests
         run: python -m unittest discover -s tests -v
+
+      - name: Build tested source bundle
+        run: |
+          git archive --format=zip --output CCS-Agent-Support-V0.3.0-dev-Phase2.zip HEAD
+          sha256sum CCS-Agent-Support-V0.3.0-dev-Phase2.zip > SHA256SUMS.txt
+
+      - name: Upload tested release artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ccs-agent-support-v03-phase2
+          path: |
+            CCS-Agent-Support-V0.3.0-dev-Phase2.zip
+            SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 30
