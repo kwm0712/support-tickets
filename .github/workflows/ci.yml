@@ -48,8 +48,9 @@ jobs:
       - name: Compile Python sources
         run: >-
           python -m py_compile
-          architecture.py embedding.py postgres_repository.py
-          ccs_core.py knowledge_ai.py streamlit_app.py
+          architecture.py embedding.py postgres_migrations.py postgres_repository.py
+          support_service.py v03_runtime.py migrate_v02_sqlite_to_v03_postgres.py
+          ccs_core.py knowledge_ai.py streamlit_app.py streamlit_v03.py
 
       - name: Run unit and PostgreSQL integration tests
         run: python -m unittest discover -s tests -v
