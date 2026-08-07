@@ -95,8 +95,13 @@ class PostgresV03IntegrationTests(unittest.TestCase):
             connection.commit()
 
             count = connection.execute(
-                "SELECT COUNT(*) FROM tickets WHERE ticket_no = %s",
-                ("CCS-2026-00001",),
+                """
+                SELECT COUNT(*)
+                FROM tickets
+                WHERE ticket_no = %s
+                  AND tenant_key IN (%s, %s)
+                """,
+                ("CCS-2026-00001", "tenant-a", "tenant-b"),
             ).fetchone()[0]
             self.assertEqual(count, 2)
 
