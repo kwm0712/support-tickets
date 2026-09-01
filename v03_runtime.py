@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 
 from architecture import TenantContext, UserContext
+from embedding import build_embedding_provider_from_env
 from postgres_migrations import apply_postgres_migrations
 from postgres_repository import PostgresRepository
 from support_service import SupportService
@@ -26,6 +27,11 @@ def build_support_service(user: dict, *, migrate: bool = True) -> SupportService
         tenant_id=tenant_id,
     )
     repository = PostgresRepository(database_url, TenantContext(tenant_id))
-    service = SupportService(repository, context)
+    embedding_provider = build_embedding_provider_from_env()
+    service = SupportService(
+        repository,
+        context,
+        embedding_provider=embedding_provider,
+    )
     service.ensure_tenant(tenant_name or tenant_id)
     return service
