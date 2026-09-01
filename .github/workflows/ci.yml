@@ -1,4 +1,4 @@
-name: CCS Support CI
+name: COMPELEC ONE Business CI
 
 on:
   push:
@@ -50,6 +50,7 @@ jobs:
           python -m py_compile
           architecture.py embedding.py postgres_migrations.py postgres_repository.py
           support_service.py v03_runtime.py migrate_v02_sqlite_to_v03_postgres.py
+          backup_restore.py launch_compelec_one.py
           ccs_core.py knowledge_ai.py streamlit_app.py streamlit_v03.py
 
       - name: Run unit and PostgreSQL integration tests
@@ -57,15 +58,64 @@ jobs:
 
       - name: Build tested source bundle
         run: |
-          git archive --format=zip --output CCS-Agent-Support-V0.3.0-dev-Phase2.zip HEAD
-          sha256sum CCS-Agent-Support-V0.3.0-dev-Phase2.zip > SHA256SUMS.txt
+          VERSION=$(cat VERSION | tr -d '\r\n')
+          git archive --format=zip --output "COMPELEC-ONE-Business-${VERSION}-source.zip" HEAD
+          sha256sum "COMPELEC-ONE-Business-${VERSION}-source.zip" > SHA256SUMS-source.txt
 
-      - name: Upload tested release artifact
+      - name: Upload tested source artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ccs-agent-support-v03-phase2
+          name: compelec-one-business-v03-source
           path: |
-            CCS-Agent-Support-V0.3.0-dev-Phase2.zip
-            SHA256SUMS.txt
+            COMPELEC-ONE-Business-*-source.zip
+            SHA256SUMS-source.txt
+          if-no-files-found: error
+          retention-days: 30
+
+  windows-release:
+    needs: test
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install Inno Setup
+        shell: powershell
+        run: choco install innosetup --yes --no-progress
+
+      - name: Build Windows EXE, installer and portable ZIP
+        shell: powershell
+        run: .\packaging\windows\build_windows.ps1
+
+      - name: Verify Windows release checksums
+        shell: powershell
+        run: |
+          $release = Join-Path $PWD 'release\windows'
+          $lines = Get-Content (Join-Path $release 'SHA256SUMS.txt')
+          if ($lines.Count -lt 2) { throw 'SHA256SUMS.txt enthält zu wenige Artefakte.' }
+          foreach ($line in $lines) {
+            $parts = $line -split '\s+', 2
+            $expected = $parts[0].Trim().ToLowerInvariant()
+            $name = $parts[1].Trim()
+            $path = Join-Path $release $name
+            if (-not (Test-Path $path)) { throw "Release-Artefakt fehlt: $name" }
+            $actual = (Get-FileHash $path -Algorithm SHA256).Hash.ToLowerInvariant()
+            if ($actual -ne $expected) { throw "SHA-256 stimmt nicht: $name" }
+          }
+
+      - name: Upload Windows release artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: compelec-one-business-v03-windows
+          path: |
+            release/windows/COMPELEC-ONE-Business-Setup-*.exe
+            release/windows/COMPELEC-ONE-Business-*-portable.zip
+            release/windows/SHA256SUMS.txt
           if-no-files-found: error
           retention-days: 30
