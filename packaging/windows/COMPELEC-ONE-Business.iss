@@ -1,5 +1,6 @@
 #define MyAppName "COMPELEC ONE Business"
 #define MyAppVersion "0.3.0-dev"
+#define MyAppNumericVersion "0.3.0.0"
 #define MyAppPublisher "Compelec Computersysteme GmbH"
 #define MyAppExeName "COMPELEC-ONE-Business.exe"
 
@@ -20,16 +21,16 @@ ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 PrivilegesRequired=admin
 UninstallDisplayName={#MyAppName}
-VersionInfoVersion=0.3.0.0
+VersionInfoVersion={#MyAppNumericVersion}
 VersionInfoCompany={#MyAppPublisher}
 VersionInfoDescription=COMPELEC ONE Business - AI Support & Knowledge
 VersionInfoProductName={#MyAppName}
-VersionInfoProductVersion={#MyAppVersion}
+VersionInfoProductVersion={#MyAppNumericVersion}
 
 [Files]
 Source: "..\..\dist\COMPELEC-ONE-Business\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "..\..\.env.example"; DestDir: "{app}"; DestName: ".env.example"; Flags: ignoreversion
-Source: "..\..\docs\BACKUP_RESTORE.md"; DestDir: "{app}\docs"; Flags: ignoreversion
+Source: "..\..\docs\COMPELEC_ONE_BACKUP_RESTORE.md"; DestDir: "{app}\docs"; Flags: ignoreversion
 Source: "..\..\VERSION"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
