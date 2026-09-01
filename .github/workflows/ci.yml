@@ -10,6 +10,7 @@ on:
       - main
       - agent/ccs-agent-support-mvp
       - agent/ccs-agent-support-v0.3-architecture
+      - agent/compelec-one-business-v0.4
 
 permissions:
   contents: read
@@ -50,7 +51,7 @@ jobs:
         run: >-
           python -m py_compile
           architecture.py embedding.py identity.py postgres_migrations.py postgres_repository.py
-          support_service.py v03_runtime.py api_v04.py reembed_v04.py
+          support_service.py v03_runtime.py api_v04.py api_v1.py production_config.py reembed_v04.py
           migrate_v02_sqlite_to_v03_postgres.py backup_restore.py launch_compelec_one.py
           ccs_core.py knowledge_ai.py streamlit_app.py streamlit_v03.py
 
@@ -66,7 +67,7 @@ jobs:
       - name: Upload tested source artifact
         uses: actions/upload-artifact@v4
         with:
-          name: compelec-one-business-v04-source
+          name: compelec-one-business-v1-source
           path: |
             COMPELEC-ONE-Business-*-source.zip
             SHA256SUMS-source.txt
@@ -113,7 +114,7 @@ jobs:
       - name: Upload Windows release artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: compelec-one-business-v04-windows
+          name: compelec-one-business-v1-windows
           path: |
             release/windows/COMPELEC-ONE-Business-Setup-*.exe
             release/windows/COMPELEC-ONE-Business-*-portable.zip
