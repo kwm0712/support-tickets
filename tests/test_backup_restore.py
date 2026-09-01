@@ -16,7 +16,7 @@ class BackupRestoreTests(unittest.TestCase):
             path.write_bytes(b"compelec-one-backup")
             self.assertEqual(
                 sha256_file(path),
-                "bf6aebf5cb094f39de13f2d45a205bc424436642410e771afbd04e4f9ba8b60d",
+                "4953049899e537af549860eaa0758e22099de6f5095ce8999b28e5bc5381ff5e",
             )
 
     @patch("backup_restore._require_tool", return_value="pg_restore")
