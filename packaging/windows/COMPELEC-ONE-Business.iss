@@ -1,6 +1,6 @@
 #define MyAppName "COMPELEC ONE Business"
-#define MyAppVersion "0.3.0-dev"
-#define MyAppNumericVersion "0.3.0.0"
+#define MyAppVersion "1.0.0-dev"
+#define MyAppNumericVersion "1.0.0.0"
 #define MyAppPublisher "Compelec Computersysteme GmbH"
 #define MyAppExeName "COMPELEC-ONE-Business.exe"
 
