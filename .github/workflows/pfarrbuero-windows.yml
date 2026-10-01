@@ -1,0 +1,37 @@
+name: Pfarrbuero Windows EXE
+on:
+  push:
+    branches: [agent/compelec-one-pfarrbuero-v1.3-windows]
+  workflow_dispatch:
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r pfarrbuero/requirements.txt
+      - name: Build EXE
+        shell: pwsh
+        run: pyinstaller --noconfirm --clean --onefile --windowed --name COMPELEC_ONE_Pfarrbuero_KI pfarrbuero/app.py
+      - name: Smoke test artifact
+        shell: pwsh
+        run: |
+          if (!(Test-Path "dist/COMPELEC_ONE_Pfarrbuero_KI.exe")) { throw "EXE missing" }
+          Get-FileHash "dist/COMPELEC_ONE_Pfarrbuero_KI.exe" -Algorithm SHA256 | Out-File "dist/COMPELEC_ONE_Pfarrbuero_KI_EXE_SHA256.txt"
+      - name: Build Setup
+        shell: pwsh
+        run: |
+          choco install innosetup -y --no-progress
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "pfarrbuero/installer.iss"
+      - name: Setup checksum
+        shell: pwsh
+        run: Get-FileHash "dist/COMPELEC_ONE_Pfarrbuero_KI_V1.3_Setup.exe" -Algorithm SHA256 | Out-File "dist/COMPELEC_ONE_Pfarrbuero_KI_V1.3_Setup_SHA256.txt"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: COMPELEC_ONE_Pfarrbuero_KI_V1.3_Windows
+          path: |
+            dist/COMPELEC_ONE_Pfarrbuero_KI.exe
+            dist/COMPELEC_ONE_Pfarrbuero_KI_V1.3_Setup.exe
+            dist/*SHA256.txt
