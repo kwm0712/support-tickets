@@ -120,6 +120,7 @@ try:
 except Exception as exc:
     failed = True
     REPORT["error"] = str(exc)
+    REPORT["startup_stderr"] = {p.name: p.read_text(encoding="utf-8", errors="replace")[-12000:] for p in OUT.glob("start-*.stderr.log")}
 finally:
     uninstaller = INSTALL / "unins000.exe"
     if uninstaller.exists():

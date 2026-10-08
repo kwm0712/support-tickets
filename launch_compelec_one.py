@@ -29,6 +29,7 @@ def main() -> int:
         "run",
         str(app),
         "--server.headless=true",
+        "--global.developmentMode=false",
         "--server.address=127.0.0.1",
         "--browser.gatherUsageStats=false",
     ]
