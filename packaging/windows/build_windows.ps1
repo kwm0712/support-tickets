@@ -19,6 +19,9 @@ python -m PyInstaller `
   --clean `
   --onedir `
   --name COMPELEC-ONE-Business `
+  --hidden-import ccs_core `
+  --hidden-import v03_runtime `
+  --hidden-import knowledge_ai `
   --collect-all streamlit `
   --collect-all altair `
   --collect-all pydeck `

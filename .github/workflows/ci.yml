@@ -111,6 +111,25 @@ jobs:
             if ($actual -ne $expected) { throw "SHA-256 stimmt nicht: $name" }
           }
 
+      - name: Install browser smoke-test dependencies
+        shell: powershell
+        run: |
+          python -m pip install 'playwright>=1.48,<2'
+          python -m playwright install chromium
+
+      - name: Test installed Windows package
+        shell: powershell
+        run: python packaging/windows/smoke_installer.py
+
+      - name: Upload Windows smoke evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: compelec-one-business-v1-windows-smoke
+          path: release/windows/smoke-evidence/
+          if-no-files-found: warn
+          retention-days: 90
+
       - name: Upload Windows release artifacts
         uses: actions/upload-artifact@v4
         with:
