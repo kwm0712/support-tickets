@@ -12,6 +12,7 @@ on:
       - agent/ccs-agent-support-v0.3-architecture
       - agent/compelec-one-business-v0.4
       - agent/compelec-one-business-v1.0
+      - agent/compelec-one-business-v1.1-readiness
       - agent/compelec-one-business-v1.2
 
 permissions:
