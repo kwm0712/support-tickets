@@ -15,6 +15,23 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
+st.markdown("""<style>
+    /* COMPELEC ONE: Eingabeflächen ohne hinterlegte Karten-/Panel-Flaeche */
+    [data-testid="stTextArea"],
+    [data-testid="stTextArea"] > div,
+    [data-testid="stTextArea"] [data-baseweb="textarea"],
+    [data-testid="stTextArea"] textarea {
+      background: transparent !important;
+      box-shadow: none !important;
+    }
+    [data-testid="stTextArea"] [data-baseweb="textarea"] {
+      border-color: transparent !important;
+    }
+    [data-testid="stTextArea"] textarea {
+      border: 0 !important;
+    }
+</style>""", unsafe_allow_html=True)
+
 STATUS_LABELS = {
     "draft": "Entwurf",
     "approved": "Freigegeben",
