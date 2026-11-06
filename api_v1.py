@@ -5,16 +5,22 @@ from typing import Any
 from fastapi import Depends, FastAPI, HTTPException, Request
 from pydantic import BaseModel, Field
 
-from architecture import AuthorizationError, TenantContext
+from architecture import (
+    AuthorizationError,
+    PERMISSION_TENANT_ADMIN,
+    TenantContext,
+    has_permission,
+)
 from embedding import build_embedding_provider_from_env
 from identity import AuthenticationError, IdentityRequest, TrustedHeaderIdentityProvider
 from postgres_migrations import apply_postgres_migrations
 from postgres_repository import PostgresRepository
 from production_config import ProductionConfig, ProductionConfigError, load_production_config
 from support_service import SupportService
+from system_diagnostics import build_system_diagnostics
 
 PRODUCT = "COMPELEC ONE Business - AI Support & Knowledge"
-VERSION = "1.0.0-dev"
+VERSION = "1.2.0-dev"
 
 app = FastAPI(title=PRODUCT, version=VERSION)
 
@@ -63,6 +69,24 @@ def readiness(service: SupportService = Depends(get_service), cfg: ProductionCon
         "identity_mode": cfg.identity_mode,
         "version": VERSION,
     }
+
+
+@app.get("/v1/system/diagnostics")
+def system_diagnostics(service: SupportService = Depends(get_service), cfg: ProductionConfig = Depends(config)):
+    if not has_permission(service.user, PERMISSION_TENANT_ADMIN):
+        raise HTTPException(status_code=403, detail="Berechtigung tenant.admin erforderlich.")
+    try:
+        database_ok = service.repository.healthcheck()
+    except Exception:
+        database_ok = False
+    return build_system_diagnostics(
+        version=VERSION,
+        environment=cfg.environment,
+        tenant_id=service.user.tenant_id,
+        identity_mode=cfg.identity_mode,
+        embedding_provider=cfg.embedding_provider,
+        database_ok=database_ok,
+    )
 
 
 @app.get("/v1/tickets")
