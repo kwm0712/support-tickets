@@ -47,6 +47,21 @@ st.markdown(
     """
     <style>
       .block-container {padding-top: 1.4rem; padding-bottom: 2rem;}
+
+    /* COMPELEC ONE: Eingabeflächen ohne hinterlegte Karten-/Panel-Flaeche */
+    [data-testid="stTextArea"],
+    [data-testid="stTextArea"] > div,
+    [data-testid="stTextArea"] [data-baseweb="textarea"],
+    [data-testid="stTextArea"] textarea {
+      background: transparent !important;
+      box-shadow: none !important;
+    }
+    [data-testid="stTextArea"] [data-baseweb="textarea"] {
+      border-color: transparent !important;
+    }
+    [data-testid="stTextArea"] textarea {
+      border: 0 !important;
+    }
       [data-testid="stMetricValue"] {font-size: 1.8rem;}
       .ccs-title {font-size: 2rem; font-weight: 750; margin-bottom: .15rem;}
       .ccs-subtitle {color: #52606d; margin-bottom: 1rem;}
