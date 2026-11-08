@@ -18,15 +18,34 @@ ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO parish_users(id,tenant_id,email,display_name) VALUES
  ('10000000-0000-0000-0000-000000000101','10000000-0000-0000-0000-000000000001','user-a@example.invalid','Test Benutzer A'),
- ('20000000-0000-0000-0000-000000000202','20000000-0000-0000-0000-000000000002','user-b@example.invalid','Test Benutzer B')
+ ('20000000-0000-0000-0000-000000000202','20000000-0000-0000-0000-000000000002','user-b@example.invalid','Test Benutzer B'),
+ ('10000000-0000-0000-0000-000000000103','10000000-0000-0000-0000-000000000001','readonly-a@example.invalid','Lesender Testbenutzer A')
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO parish_cases(tenant_id,org_unit_id,case_type,subject,created_by) VALUES
  ('10000000-0000-0000-0000-000000000001','10000000-0000-0000-0000-000000000011','Test','Testfall A','10000000-0000-0000-0000-000000000101'),
- ('20000000-0000-0000-0000-000000000002','20000000-0000-0000-0000-000000000022','Test','Testfall B – darf nicht sichtbar sein','20000000-0000-0000-0000-000000000202');
+ ('20000000-0000-0000-0000-000000000002','20000000-0000-0000-0000-000000000022','Test','Testfall B – darf nicht sichtbar sein','20000000-0000-0000-0000-000000000202'),
+ ('10000000-0000-0000-0000-000000000001','10000000-0000-0000-0000-000000000011','Seelsorge','Vertraulicher Seelsorgevorgang','10000000-0000-0000-0000-000000000101');
+
+INSERT INTO parish_memberships(tenant_id,user_id,org_unit_id,role_id)
+SELECT '10000000-0000-0000-0000-000000000001','10000000-0000-0000-0000-000000000101',
+       '10000000-0000-0000-0000-000000000011',id
+FROM parish_roles WHERE role_key='pfarrbuero'
+ON CONFLICT DO NOTHING;
+INSERT INTO parish_memberships(tenant_id,user_id,org_unit_id,role_id)
+SELECT '10000000-0000-0000-0000-000000000001','10000000-0000-0000-0000-000000000103',
+       '10000000-0000-0000-0000-000000000011',id
+FROM parish_roles WHERE role_key='read_only'
+ON CONFLICT DO NOTHING;
+INSERT INTO parish_memberships(tenant_id,user_id,org_unit_id,role_id)
+SELECT '20000000-0000-0000-0000-000000000002','20000000-0000-0000-0000-000000000202',
+       '20000000-0000-0000-0000-000000000022',id
+FROM parish_roles WHERE role_key='pfarrbuero'
+ON CONFLICT DO NOTHING;
 
 GRANT USAGE ON SCHEMA public TO pfarrbuero_runtime;
-GRANT SELECT ON parish_tenants,parish_org_units,parish_users TO pfarrbuero_runtime;
+GRANT SELECT ON parish_tenants,parish_org_units,parish_users,parish_memberships TO pfarrbuero_runtime;
+GRANT SELECT ON parish_roles,parish_role_permissions,parish_permissions TO pfarrbuero_runtime;
 GRANT INSERT ON parish_org_units TO pfarrbuero_runtime;
 GRANT SELECT,INSERT ON parish_cases,parish_audit_events TO pfarrbuero_runtime;
 GRANT USAGE,SELECT ON ALL SEQUENCES IN SCHEMA public TO pfarrbuero_runtime;
