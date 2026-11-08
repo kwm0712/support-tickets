@@ -105,6 +105,7 @@ CREATE TABLE IF NOT EXISTS parish_cases (
   REFERENCES parish_users(tenant_id,id) ON DELETE RESTRICT,
  CONSTRAINT fk_parish_case_creator_same_tenant FOREIGN KEY (tenant_id,created_by)
   REFERENCES parish_users(tenant_id,id) ON DELETE RESTRICT,
+ CONSTRAINT uq_parish_case_tenant_id UNIQUE(tenant_id,id),
  CONSTRAINT uq_parish_case_number UNIQUE(tenant_id,case_number)
 );
 CREATE INDEX IF NOT EXISTS ix_parish_cases_queue ON parish_cases(tenant_id,org_unit_id,status,updated_at DESC);
