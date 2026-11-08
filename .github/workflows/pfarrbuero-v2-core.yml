@@ -1,0 +1,54 @@
+name: Pfarrbüro-KI V2.0 Enterprise Core
+on:
+  push:
+    branches:
+      - agent/pfarrbuero-ki-v2.0-enterprise-core
+  pull_request:
+    branches:
+      - agent/pfarrbuero-ki-v2.0-enterprise-core
+  workflow_dispatch:
+
+jobs:
+  postgres-core:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: pfarrbuero
+          POSTGRES_PASSWORD: pfarrbuero-ci
+          POSTGRES_DB: pfarrbuero_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U pfarrbuero -d pfarrbuero_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+      - name: Apply migration twice (idempotence check)
+        env:
+          PGPASSWORD: pfarrbuero-ci
+        run: |
+          psql -h 127.0.0.1 -U pfarrbuero -d pfarrbuero_test -v ON_ERROR_STOP=1 -f pfarrbuero/migrations/postgres/0001_enterprise_core.sql
+          psql -h 127.0.0.1 -U pfarrbuero -d pfarrbuero_test -v ON_ERROR_STOP=1 -f pfarrbuero/migrations/postgres/0001_enterprise_core.sql
+      - name: Verify tenant isolation
+        env:
+          PGPASSWORD: pfarrbuero-ci
+        run: |
+          psql -h 127.0.0.1 -U pfarrbuero -d pfarrbuero_test -v ON_ERROR_STOP=1 -f pfarrbuero/tests/test_enterprise_core.sql
+      - name: Publish migration and test sources
+        uses: actions/upload-artifact@v4
+        with:
+          name: pfarrbuero-ki-v2-enterprise-core-sources
+          path: |
+            pfarrbuero/VERSION
+            pfarrbuero/migrations/postgres/0001_enterprise_core.sql
+            pfarrbuero/tests/test_enterprise_core.sql
+            pfarrbuero/docs/V2.0_ENTERPRISE_CORE.md
+            pfarrbuero/docs/V2.0_ROADMAP.md
