@@ -74,8 +74,8 @@ BEGIN
   RAISE EXCEPTION 'Tenant isolation failed: expected 1 visible org unit, got %',visible_rows;
  END IF;
  SELECT count(*) INTO case_rows FROM parish_cases;
- IF case_rows <> 1 THEN
-  RAISE EXCEPTION 'Tenant case isolation failed: expected 1 case, got %',case_rows;
+ IF case_rows <> 2 THEN
+  RAISE EXCEPTION 'Tenant case isolation failed: expected 2 cases, got %',case_rows;
  END IF;
  BEGIN
   INSERT INTO parish_org_units(id,tenant_id,parent_id,unit_type,unit_key,display_name)
