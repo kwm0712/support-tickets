@@ -51,7 +51,7 @@ class App(tk.Tk):
                 self.auth_client = OidcAuthClient()
                 try:
                     token = self.auth_client.access_token()
-                    self.api_store = ApiCaseStore(self.api_url, token)
+                    self.api_store = ApiCaseStore(self.api_url, self.auth_client.access_token)
                     self.api_store.health_check()
                     self.backend_label = "SECURE API · ANGEMELDET"
                 except RuntimeError as auth_error:
