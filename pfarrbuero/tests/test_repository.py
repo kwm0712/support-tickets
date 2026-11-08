@@ -26,14 +26,15 @@ class PostgresRepositoryTests(unittest.TestCase):
             )
         )
 
-    def test_health_check_sees_only_configured_tenant(self):
+    def test_health_check_requires_membership_and_case_read(self):
         self.store.health_check()
 
-    def test_list_cases_does_not_leak_other_tenant(self):
+    def test_list_cases_hides_foreign_tenant_and_seelsorge_secret(self):
         rows = self.store.list_cases()
         subjects = [row[1] for row in rows]
         self.assertIn("Testfall A", subjects)
         self.assertFalse(any("Testfall B" in subject for subject in subjects))
+        self.assertFalse(any("Vertraulicher Seelsorgevorgang" in subject for subject in subjects))
 
     def test_create_case_and_audit_event_are_atomic(self):
         subject = "Automatisierter V2.0 Integrationstest"
@@ -57,6 +58,18 @@ class PostgresRepositoryTests(unittest.TestCase):
                 (self.tenant_id, str(case[0])),
             ).fetchone()[0]
             self.assertEqual(audit, 1)
+
+    def test_read_only_role_cannot_create_cases(self):
+        readonly_store = PostgresCaseStore(
+            StoreConfig(
+                dsn=self.dsn,
+                tenant_id=self.tenant_id,
+                org_unit_id=self.org_unit_id,
+                actor_user_id="10000000-0000-0000-0000-000000000103",
+            )
+        )
+        with self.assertRaises(PermissionError):
+            readonly_store.create_case("Test", "Darf nicht angelegt werden")
 
     def test_missing_tenant_context_returns_no_cases(self):
         with psycopg.connect(self.dsn) as conn:
