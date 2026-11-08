@@ -176,7 +176,7 @@ ON CONFLICT(permission_key) DO NOTHING;
 
 -- Default least-privilege permission map. Pastoral-secret access is deliberately
 -- not inherited by general administrators or Pfarrbüro roles.
-WITH grants(role_key, permission_key) AS (
+WITH role_permission_seed(role_key, permission_key) AS (
  VALUES
  ('bistum_admin','tenant.read'),('bistum_admin','tenant.admin'),
  ('bistum_admin','org.read'),('bistum_admin','org.admin'),('bistum_admin','user.admin'),
@@ -193,7 +193,7 @@ WITH grants(role_key, permission_key) AS (
 )
 INSERT INTO parish_role_permissions(role_id,permission_id)
 SELECT r.id,p.id
-FROM grants g
+FROM role_permission_seed g
 JOIN parish_roles r ON r.role_key=g.role_key
 JOIN parish_permissions p ON p.permission_key=g.permission_key
 ON CONFLICT(role_id,permission_id) DO NOTHING;
