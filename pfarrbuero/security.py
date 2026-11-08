@@ -4,6 +4,7 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 from functools import lru_cache
+from uuid import UUID
 
 import jwt
 from jwt import PyJWKClient
@@ -42,4 +43,9 @@ def decode_access_token(token: str) -> Principal:
     values = (claims.get("sub"), claims.get("tenant_id"), claims.get("org_unit_id"))
     if not all(isinstance(value, str) and value.strip() for value in values):
         raise jwt.InvalidTokenError("sub, tenant_id und org_unit_id müssen Strings sein.")
+    try:
+        for value in values:
+            UUID(value)
+    except ValueError as exc:
+        raise jwt.InvalidTokenError("sub, tenant_id und org_unit_id müssen gültige UUIDs sein.") from exc
     return Principal(user_id=values[0], tenant_id=values[1], org_unit_id=values[2])
