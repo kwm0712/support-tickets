@@ -1,62 +1,255 @@
+import os
+import sqlite3
 import tkinter as tk
-from tkinter import ttk, messagebox
-import sqlite3, os
 from pathlib import Path
+from tkinter import messagebox, simpledialog, ttk
 
-APP="COMPELEC ONE Pfarrbüro-KI"; VERSION="1.3.0-demo"
-DATA=Path(os.getenv("LOCALAPPDATA",str(Path.home())))/"COMPELEC ONE"/"Pfarrbuero-KI"
-DATA.mkdir(parents=True,exist_ok=True); DB=DATA/"pfarrbuero_demo.db"
+from repository import PostgresCaseStore, StoreConfig
 
-def db():
-    c=sqlite3.connect(DB)
-    c.execute("create table if not exists cases(id integer primary key, typ text, name text, status text)")
-    if c.execute("select count(*) from cases").fetchone()[0]==0:
-        c.executemany("insert into cases(typ,name,status) values(?,?,?)",[("Taufe","Familie Beispiel","Offen"),("Trauung","Demo-Vorgang","In Bearbeitung"),("Beerdigung","Mustermann","Freigabe")])
-    c.commit(); return c
+APP = "COMPELEC ONE Pfarrbüro-KI"
+VERSION = "2.0.0-dev"
+DATA = Path(os.getenv("LOCALAPPDATA", str(Path.home()))) / "COMPELEC ONE" / "Pfarrbuero-KI"
+DATA.mkdir(parents=True, exist_ok=True)
+DB = DATA / "pfarrbuero_demo.db"
+
+
+def demo_db():
+    """Explicitly local demo storage. Never used as a silent PostgreSQL fallback."""
+    conn = sqlite3.connect(DB)
+    conn.execute(
+        "create table if not exists cases(id integer primary key, typ text, name text, status text)"
+    )
+    if conn.execute("select count(*) from cases").fetchone()[0] == 0:
+        conn.executemany(
+            "insert into cases(typ,name,status) values(?,?,?)",
+            [
+                ("Taufe", "Familie Beispiel", "Offen"),
+                ("Trauung", "Demo-Vorgang", "In Bearbeitung"),
+                ("Beerdigung", "Mustermann", "Freigabe"),
+            ],
+        )
+    conn.commit()
+    return conn
+
 
 class App(tk.Tk):
     def __init__(self):
-        super().__init__(); self.title(f"{APP} – V{VERSION}"); self.geometry("1280x820"); self.minsize(1000,700)
-        self.configure(bg="#f4f8fb"); self.conn=db(); self.style=ttk.Style(self); self.style.theme_use("clam")
-        self.style.configure("Nav.TButton",font=("Segoe UI",11),padding=12,anchor="w")
-        self.style.configure("Title.TLabel",font=("Segoe UI",22,"bold"),background="#f4f8fb",foreground="#005B96")
-        self.style.configure("H.TLabel",font=("Segoe UI",14,"bold"),background="white",foreground="#17212b")
-        self.make_ui(); self.show("Dashboard")
+        super().__init__()
+        self.title(f"{APP} – V{VERSION}")
+        self.geometry("1280x820")
+        self.minsize(1000, 700)
+        self.configure(bg="#f4f8fb")
+
+        self.pg_store = None
+        self.backend_error = None
+        self.conn = None
+        if os.getenv("PFARRBUERO_DATABASE_URL"):
+            try:
+                self.pg_store = PostgresCaseStore(StoreConfig.from_env())
+                self.pg_store.health_check()
+                self.backend_label = "POSTGRESQL · ENTWICKLUNG"
+            except Exception as exc:
+                # Fail closed: do not fall back to demo data when PostgreSQL was requested.
+                self.backend_error = str(exc)
+                self.backend_label = "POSTGRESQL · VERBINDUNGSFEHLER"
+        else:
+            self.conn = demo_db()
+            self.backend_label = "DEMO-DATEN · SQLite"
+
+        self.style = ttk.Style(self)
+        self.style.theme_use("clam")
+        self.style.configure("Nav.TButton", font=("Segoe UI", 11), padding=12, anchor="w")
+        self.style.configure(
+            "Title.TLabel", font=("Segoe UI", 22, "bold"),
+            background="#f4f8fb", foreground="#005B96"
+        )
+        self.style.configure(
+            "H.TLabel", font=("Segoe UI", 14, "bold"),
+            background="white", foreground="#17212b"
+        )
+        self.make_ui()
+        self.show("Dashboard")
+
     def make_ui(self):
-        top=tk.Frame(self,bg="white",height=64); top.pack(fill="x"); top.pack_propagate(False)
-        tk.Label(top,text="COMPELEC ONE",font=("Segoe UI",18,"bold"),fg="#005B96",bg="white").pack(side="left",padx=24)
-        tk.Label(top,text="Pfarrbüro-KI   ·   V1.3 Demo/Pilot",font=("Segoe UI",11),fg="#50616d",bg="white").pack(side="left")
-        body=tk.Frame(self,bg="#f4f8fb"); body.pack(fill="both",expand=True)
-        nav=tk.Frame(body,bg="#e5f4fc",width=230); nav.pack(side="left",fill="y"); nav.pack_propagate(False)
-        self.content=tk.Frame(body,bg="#f4f8fb"); self.content.pack(side="left",fill="both",expand=True,padx=24,pady=20)
-        for n in ["Dashboard","KI-Assistent","Vorgänge & Kasualien","Gottesdienste & Termine","Dokumente & Wissen","Kommunikation","Administration"]:
-            ttk.Button(nav,text=n,style="Nav.TButton",command=lambda x=n:self.show(x)).pack(fill="x",padx=12,pady=4)
+        top = tk.Frame(self, bg="white", height=64)
+        top.pack(fill="x")
+        top.pack_propagate(False)
+        tk.Label(
+            top, text="COMPELEC ONE", font=("Segoe UI", 18, "bold"),
+            fg="#005B96", bg="white"
+        ).pack(side="left", padx=24)
+        tk.Label(
+            top, text="Pfarrbüro-KI   ·   V2.0 Entwicklungsstand",
+            font=("Segoe UI", 11), fg="#50616d", bg="white"
+        ).pack(side="left")
+        tk.Label(
+            top, text=self.backend_label, font=("Segoe UI", 9, "bold"),
+            fg="#005B96" if self.pg_store else "#8a5a00", bg="white"
+        ).pack(side="right", padx=22)
+
+        body = tk.Frame(self, bg="#f4f8fb")
+        body.pack(fill="both", expand=True)
+        nav = tk.Frame(body, bg="#e5f4fc", width=230)
+        nav.pack(side="left", fill="y")
+        nav.pack_propagate(False)
+        self.content = tk.Frame(body, bg="#f4f8fb")
+        self.content.pack(side="left", fill="both", expand=True, padx=24, pady=20)
+
+        modules = [
+            "Dashboard", "KI-Assistent", "Vorgänge & Kasualien",
+            "Gottesdienste & Termine", "Dokumente & Wissen",
+            "Kommunikation", "Administration"
+        ]
+        for name in modules:
+            ttk.Button(
+                nav, text=name, style="Nav.TButton",
+                command=lambda selected=name: self.show(selected)
+            ).pack(fill="x", padx=12, pady=4)
+
     def clear(self):
-        for w in self.content.winfo_children(): w.destroy()
-    def card(self,parent,title,text):
-        f=tk.Frame(parent,bg="white",bd=1,relief="solid"); f.pack(side="left",fill="both",expand=True,padx=7,pady=7)
-        ttk.Label(f,text=title,style="H.TLabel").pack(anchor="w",padx=18,pady=(16,6))
-        tk.Label(f,text=text,font=("Segoe UI",12),fg="#50616d",bg="white",justify="left").pack(anchor="w",padx=18,pady=(0,18)); return f
-    def show(self,name):
-        self.clear(); ttk.Label(self.content,text=name,style="Title.TLabel").pack(anchor="w",pady=(0,12))
-        if name=="Dashboard":
-            r=tk.Frame(self.content,bg="#f4f8fb"); r.pack(fill="x")
-            self.card(r,"Offene Vorgänge","3 Demo-Vorgänge"); self.card(r,"Gottesdienste","8 in den nächsten 7 Tagen"); self.card(r,"Dokumente","146 Demo-Einträge")
-            self.card(self.content,"Heute im Pfarrbüro","09:00 Taufanfrage prüfen\n11:30 Gottesdienstordnung abstimmen\n14:00 Unterlagen vorbereiten")
-        elif name=="Vorgänge & Kasualien":
-            f=tk.Frame(self.content,bg="white"); f.pack(fill="both",expand=True)
-            tree=ttk.Treeview(f,columns=("typ","name","status"),show="headings"); [tree.heading(c,text=t) for c,t in zip(("typ","name","status"),("Art","Vorgang","Status"))]
-            for row in self.conn.execute("select typ,name,status from cases"): tree.insert("", "end", values=row)
-            tree.pack(fill="both",expand=True,padx=16,pady=16)
-            def add():
-                self.conn.execute("insert into cases(typ,name,status) values('Taufe','Neuer Demo-Vorgang','Offen')"); self.conn.commit(); self.show(name)
-            ttk.Button(f,text="+ Demo-Vorgang anlegen",command=add).pack(anchor="e",padx=16,pady=(0,16))
-        elif name=="KI-Assistent":
-            self.card(self.content,"Pfarrbüro-KI","Demo-Assistent: Antworten werden in dieser Fassung nicht an externe KI-Dienste gesendet.\nHuman-in-the-Loop · Quellenprüfung · Freigabe · Audit vorbereitet.")
-            q=tk.Text(self.content,height=8,font=("Segoe UI",11)); q.pack(fill="x",pady=10)
-            ttk.Button(self.content,text="Demo-Antwort vorbereiten",command=lambda:messagebox.showinfo("KI-Demo","Anfrage erkannt. Produktive RAG-/KI-Anbindung folgt nach Pilotfreigabe.")).pack(anchor="w")
-        elif name=="Gottesdienste & Termine": self.card(self.content,"Wochenplanung","Sonntag 10:30 Eucharistiefeier\nDienstag 18:30 Abendmesse\nFreitag 17:00 Andacht")
-        elif name=="Dokumente & Wissen": self.card(self.content,"Wissensbasis","Formulare 38   ·   Vorlagen 29   ·   Arbeitshilfen 44\nProduktive Dokumentenablage folgt im nächsten Release.")
-        elif name=="Kommunikation": self.card(self.content,"Kommunikation","E-Mail · Pfarrbrief · Website · interne Nachricht\nEntwürfe mit Freigabeprozess vorbereitet.")
-        else: self.card(self.content,"Administration","Mandant: Demo-Pfarrei\nBenutzer: 6 · Rollen: 4\nAI Control & Governance: Human-in-the-Loop, Least Privilege, Audit-Trail")
-if __name__=="__main__": App().mainloop()
+        for widget in self.content.winfo_children():
+            widget.destroy()
+
+    def card(self, parent, title, text):
+        frame = tk.Frame(parent, bg="white", bd=1, relief="solid")
+        frame.pack(side="left", fill="both", expand=True, padx=7, pady=7)
+        ttk.Label(frame, text=title, style="H.TLabel").pack(
+            anchor="w", padx=18, pady=(16, 6)
+        )
+        tk.Label(
+            frame, text=text, font=("Segoe UI", 12),
+            fg="#50616d", bg="white", justify="left", wraplength=280
+        ).pack(anchor="w", padx=18, pady=(0, 18))
+        return frame
+
+    def case_rows(self):
+        if self.pg_store:
+            return self.pg_store.list_cases()
+        if self.conn:
+            return self.conn.execute(
+                "select typ,name,status from cases order by id desc"
+            ).fetchall()
+        return []
+
+    def add_case(self):
+        case_type = simpledialog.askstring("Neuer Vorgang", "Vorgangsart:", parent=self)
+        if not case_type:
+            return
+        subject = simpledialog.askstring("Neuer Vorgang", "Betreff / Kurzbeschreibung:", parent=self)
+        if not subject:
+            return
+        try:
+            if self.pg_store:
+                self.pg_store.create_case(case_type, subject)
+            elif self.conn:
+                self.conn.execute(
+                    "insert into cases(typ,name,status) values(?,?,?)",
+                    (case_type.strip(), subject.strip(), "Offen")
+                )
+                self.conn.commit()
+            else:
+                raise RuntimeError(self.backend_error or "Kein Datenbank-Backend verfügbar.")
+            self.show("Vorgänge & Kasualien")
+        except Exception as exc:
+            messagebox.showerror("Vorgang konnte nicht gespeichert werden", str(exc))
+
+    def show(self, name):
+        self.clear()
+        ttk.Label(self.content, text=name, style="Title.TLabel").pack(
+            anchor="w", pady=(0, 12)
+        )
+
+        if self.backend_error:
+            tk.Label(
+                self.content,
+                text="PostgreSQL wurde ausdrücklich konfiguriert, ist aber nicht verfügbar.\n"
+                     "Aus Sicherheitsgründen wird nicht auf Demo-Daten zurückgeschaltet.\n\n"
+                     + self.backend_error,
+                font=("Segoe UI", 11), fg="#9b1c1c", bg="#f4f8fb",
+                justify="left", wraplength=850
+            ).pack(anchor="w", pady=16)
+            return
+
+        if name == "Dashboard":
+            rows = self.case_rows()
+            open_count = sum(1 for row in rows if str(row[2]).lower() in ("offen", "open"))
+            row = tk.Frame(self.content, bg="#f4f8fb")
+            row.pack(fill="x")
+            self.card(row, "Vorgänge", f"{len(rows)} Vorgänge im ausgewählten Datenbestand")
+            self.card(row, "Offene Vorgänge", str(open_count))
+            self.card(
+                row, "Datenbank",
+                "PostgreSQL-Mandantenmodus (Entwicklung)" if self.pg_store
+                else "Lokaler Demo-Modus – keine produktiven Daten"
+            )
+            self.card(
+                self.content, "Nächste Ausbaustufen",
+                "Gottesdienstplanung · Veranstaltungen · Dokumentenablage\n"
+                "Sakramentenverwaltung · Ehrenamt · Seelsorge"
+            )
+
+        elif name == "Vorgänge & Kasualien":
+            frame = tk.Frame(self.content, bg="white")
+            frame.pack(fill="both", expand=True)
+            tree = ttk.Treeview(
+                frame, columns=("typ", "subject", "status"),
+                show="headings", height=18
+            )
+            for column, title, width in (
+                ("typ", "Vorgangsart", 180),
+                ("subject", "Betreff / Vorgang", 520),
+                ("status", "Status", 180),
+            ):
+                tree.heading(column, text=title)
+                tree.column(column, width=width, anchor="w")
+            for item in self.case_rows():
+                tree.insert("", "end", values=item)
+            tree.pack(fill="both", expand=True, padx=16, pady=16)
+            ttk.Button(
+                frame, text="+ Vorgang anlegen", command=self.add_case
+            ).pack(anchor="e", padx=16, pady=(0, 16))
+
+        elif name == "KI-Assistent":
+            self.card(
+                self.content, "Pfarrbüro-KI",
+                "Derzeit noch kein produktiver KI-Aufruf. Geplant sind Quellenbindung, "
+                "RAG-Wissensbasis, Freigabeschritte und Audit-Protokoll."
+            )
+            q = tk.Text(self.content, height=8, font=("Segoe UI", 11))
+            q.pack(fill="x", pady=10)
+            ttk.Button(
+                self.content, text="Anfrage vorbereiten",
+                command=lambda: messagebox.showinfo(
+                    "KI-Assistent",
+                    "Die produktive KI-/RAG-Anbindung wird in einem späteren, separat geprüften Schritt integriert."
+                )
+            ).pack(anchor="w")
+
+        elif name == "Gottesdienste & Termine":
+            self.card(
+                self.content, "Gottesdienstplanung",
+                "Nächster Umsetzungsschritt: Kalenderdatenmodell, Ressourcen, "
+                "Zelebranten und Konfliktprüfung."
+            )
+        elif name == "Dokumente & Wissen":
+            self.card(
+                self.content, "Dokumente & Wissensbasis",
+                "Geplant: kontrollierter Dateispeicher, Dokumentversionen, "
+                "SHA-256-Prüfung und Freigabeworkflow."
+            )
+        elif name == "Kommunikation":
+            self.card(
+                self.content, "Kommunikation",
+                "Geplant: Korrespondenzentwürfe, E-Mail-Adapter und menschliche Freigabe."
+            )
+        else:
+            self.card(
+                self.content, "Administration",
+                "V2.0-Kern: Mandanten, Organisationseinheiten, Benutzer, Rollen, "
+                "Berechtigungen und Audit. Die produktive Anmeldung und "
+                "Berechtigungsverwaltung folgen als eigener Umsetzungsschritt."
+            )
+
+
+if __name__ == "__main__":
+    App().mainloop()
