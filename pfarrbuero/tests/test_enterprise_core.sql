@@ -29,24 +29,33 @@ GRANT USAGE ON SCHEMA public TO pfarrbuero_runtime;
 GRANT SELECT ON parish_tenants,parish_org_units,parish_users TO pfarrbuero_runtime;
 GRANT SELECT,INSERT ON parish_cases,parish_audit_events TO pfarrbuero_runtime;
 GRANT USAGE,SELECT ON ALL SEQUENCES IN SCHEMA public TO pfarrbuero_runtime;
-GRANT SELECT,INSERT ON parish_tenants,parish_org_units TO pfarrbuero_runtime;
 
 BEGIN;
 SET LOCAL ROLE pfarrbuero_runtime;
-SELECT set_config('app.tenant_id','10000000-0000-0000-0000-000000000001',true);
+
+-- Missing tenant context must fail closed.
 DO $$
-DECLARE visible_rows integer;
-DECLARE case_rows integer;
 DECLARE missing_context_rows integer;
-DECLARE cross_tenant_write_blocked boolean := false;
 BEGIN
  SELECT count(*) INTO missing_context_rows FROM parish_cases;
  IF missing_context_rows <> 0 THEN
   RAISE EXCEPTION 'RLS failed closed without tenant context: expected 0 rows, got %',missing_context_rows;
  END IF;
+END $$;
+
+SELECT set_config('app.tenant_id','10000000-0000-0000-0000-000000000001',true);
+DO $$
+DECLARE visible_rows integer;
+DECLARE case_rows integer;
+DECLARE cross_tenant_write_blocked boolean := false;
+BEGIN
  SELECT count(*) INTO visible_rows FROM parish_org_units;
  IF visible_rows <> 1 THEN
   RAISE EXCEPTION 'Tenant isolation failed: expected 1 visible org unit, got %',visible_rows;
+ END IF;
+ SELECT count(*) INTO case_rows FROM parish_cases;
+ IF case_rows <> 1 THEN
+  RAISE EXCEPTION 'Tenant case isolation failed: expected 1 case, got %',case_rows;
  END IF;
  BEGIN
   INSERT INTO parish_org_units(id,tenant_id,parent_id,unit_type,unit_key,display_name)
@@ -58,9 +67,5 @@ BEGIN
  IF NOT cross_tenant_write_blocked THEN
   RAISE EXCEPTION 'Tenant isolation failed: cross-tenant write was not blocked';
  END IF;
- SELECT count(*) INTO case_rows FROM parish_cases;
- IF case_rows <> 1 THEN
-  RAISE EXCEPTION 'Tenant case isolation failed: expected 1 case, got %',case_rows;
- END IF;
-END $;
+END $$;
 ROLLBACK;
