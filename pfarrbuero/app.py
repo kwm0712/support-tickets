@@ -5,9 +5,10 @@ from pathlib import Path
 from tkinter import messagebox, simpledialog, ttk
 
 from api_client import ApiCaseStore
+from oidc_auth import OidcAuthClient
 
 APP = "COMPELEC ONE Pfarrbüro-KI"
-VERSION = "2.0.1-dev"
+VERSION = "2.0.2-dev"
 DATA = Path(os.getenv("LOCALAPPDATA", str(Path.home()))) / "COMPELEC ONE" / "Pfarrbuero-KI"
 DATA.mkdir(parents=True, exist_ok=True)
 DB = DATA / "pfarrbuero_demo.db"
@@ -41,19 +42,26 @@ class App(tk.Tk):
         self.configure(bg="#f4f8fb")
 
         self.api_store = None
+        self.auth_client = None
         self.backend_error = None
         self.conn = None
-        if os.getenv("PFARRBUERO_API_URL"):
+        self.api_url = os.getenv("PFARRBUERO_API_URL", "").rstrip("/")
+        if self.api_url:
             try:
-                self.api_store = ApiCaseStore()
-                self.api_store.health_check()
-                self.backend_label = "SECURE API · OIDC"
+                self.auth_client = OidcAuthClient()
+                try:
+                    self.auth_client.access_token()
+                    self.api_store = ApiCaseStore(self.api_url, self.auth_client.access_token)
+                    self.api_store.health_check()
+                    self.backend_label = "SECURE API · ANGEMELDET"
+                except RuntimeError as auth_error:
+                    self.backend_error = str(auth_error)
+                    self.backend_label = "ANMELDUNG ERFORDERLICH"
             except Exception as exc:
-                # Fail closed: do not fall back to demo data when PostgreSQL was requested.
                 self.backend_error = str(exc)
-                self.backend_label = "API · VERBINDUNGSFEHLER"
+                self.backend_label = "OIDC-KONFIGURATION FEHLT"
         elif os.getenv("PFARRBUERO_DATABASE_URL"):
-            self.backend_error = "Direkter PostgreSQL-Zugriff aus der Desktop-Anwendung ist deaktiviert. Bitte PFARRBUERO_API_URL und ein gültiges OIDC-Zugriffstoken konfigurieren."
+            self.backend_error = "Direkter PostgreSQL-Zugriff aus der Desktop-Anwendung ist deaktiviert. Bitte PFARRBUERO_API_URL und OIDC-Clientkonfiguration einrichten."
             self.backend_label = "API-KONFIGURATION FEHLT"
         else:
             self.conn = demo_db()
@@ -82,13 +90,18 @@ class App(tk.Tk):
             fg="#005B96", bg="white"
         ).pack(side="left", padx=24)
         tk.Label(
-            top, text="Pfarrbüro-KI   ·   V2.0.1 Entwicklungsstand",
+            top, text="Pfarrbüro-KI   ·   V2.0.2 Entwicklungsstand",
             font=("Segoe UI", 11), fg="#50616d", bg="white"
         ).pack(side="left")
-        tk.Label(
+        if self.api_url:
+            ttk.Button(top, text="Anmelden", command=self.login).pack(side="right", padx=(4, 12))
+            if self.auth_client:
+                ttk.Button(top, text="Abmelden", command=self.logout).pack(side="right", padx=4)
+        self.backend_status = tk.Label(
             top, text=self.backend_label, font=("Segoe UI", 9, "bold"),
             fg="#005B96" if self.api_store else "#8a5a00", bg="white"
-        ).pack(side="right", padx=22)
+        )
+        self.backend_status.pack(side="right", padx=12)
 
         body = tk.Frame(self, bg="#f4f8fb")
         body.pack(fill="both", expand=True)
@@ -108,6 +121,35 @@ class App(tk.Tk):
                 nav, text=name, style="Nav.TButton",
                 command=lambda selected=name: self.show(selected)
             ).pack(fill="x", padx=12, pady=4)
+
+    def login(self):
+        if not self.auth_client:
+            messagebox.showerror("OIDC nicht konfiguriert", self.backend_error or "OIDC-Konfiguration fehlt.")
+            return
+        try:
+            self.auth_client.login()
+            self.api_store = ApiCaseStore(self.api_url, self.auth_client.access_token)
+            self.api_store.health_check()
+            self.backend_error = None
+            self.backend_label = "SECURE API · ANGEMELDET"
+            self.backend_status.configure(text=self.backend_label, fg="#005B96")
+            self.show("Dashboard")
+        except Exception as exc:
+            self.api_store = None
+            self.backend_error = str(exc)
+            self.backend_label = "ANMELDUNG FEHLGESCHLAGEN"
+            self.backend_status.configure(text=self.backend_label, fg="#9b1c1c")
+            messagebox.showerror("Anmeldung fehlgeschlagen", str(exc))
+            self.show("Dashboard")
+
+    def logout(self):
+        if self.auth_client:
+            self.auth_client.clear()
+        self.api_store = None
+        self.backend_error = "Bitte über die Schaltfläche Anmelden erneut anmelden."
+        self.backend_label = "ABGEMELDET"
+        self.backend_status.configure(text=self.backend_label, fg="#8a5a00")
+        self.show("Dashboard")
 
     def clear(self):
         for widget in self.content.winfo_children():
@@ -165,7 +207,7 @@ class App(tk.Tk):
         if self.backend_error:
             tk.Label(
                 self.content,
-                text="PostgreSQL wurde ausdrücklich konfiguriert, ist aber nicht verfügbar.\n"
+                text="Der produktive API-Zugriff ist derzeit nicht verfügbar.\n"
                      "Aus Sicherheitsgründen wird nicht auf Demo-Daten zurückgeschaltet.\n\n"
                      + self.backend_error,
                 font=("Segoe UI", 11), fg="#9b1c1c", bg="#f4f8fb",

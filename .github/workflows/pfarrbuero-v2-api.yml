@@ -1,11 +1,11 @@
-name: Pfarrbüro-KI V2.0.1 Secure API
+name: Pfarrbüro-KI V2.0.2 Secure API
 on:
   push:
     branches:
-      - agent/pfarrbuero-ki-v2.0.1-secure-api
+      - agent/pfarrbuero-ki-v2.0.2-oidc-pkce
   pull_request:
     branches:
-      - agent/pfarrbuero-ki-v2.0.1-secure-api
+      - agent/pfarrbuero-ki-v2.0.2-oidc-pkce
   workflow_dispatch:
 
 jobs:
@@ -56,18 +56,20 @@ jobs:
           PYTHONPATH: pfarrbuero
         run: python -m unittest discover -s pfarrbuero/tests -p 'test_*.py' -v
       - name: Compile application and API
-        run: python -m py_compile pfarrbuero/app.py pfarrbuero/api_client.py pfarrbuero/api.py pfarrbuero/security.py pfarrbuero/repository.py
+        run: python -m py_compile pfarrbuero/app.py pfarrbuero/api_client.py pfarrbuero/api.py pfarrbuero/security.py pfarrbuero/oidc_auth.py pfarrbuero/repository.py
       - name: Upload API source bundle
         uses: actions/upload-artifact@v4
         with:
-          name: COMPELEC_ONE_Pfarrbuero_KI_V2.0.1_API_sources
+          name: COMPELEC_ONE_Pfarrbuero_KI_V2.0.2_API_sources
           path: |
             pfarrbuero/api.py
             pfarrbuero/security.py
             pfarrbuero/api_client.py
+            pfarrbuero/oidc_auth.py
             pfarrbuero/repository.py
             pfarrbuero/requirements.txt
             pfarrbuero/tests/test_api.py
-            pfarrbuero/docs/V2.0.1_API_SETUP.md
+            pfarrbuero/tests/test_oidc_auth.py
+            pfarrbuero/docs/V2.0.2_OIDC_LOGIN.md
           if-no-files-found: error
           retention-days: 30

@@ -1,5 +1,5 @@
 #define MyAppName "COMPELEC ONE Pfarrbüro-KI"
-#define MyAppVersion "2.0.1-dev"
+#define MyAppVersion "2.0.2-dev"
 [Setup]
 AppId={{BFA87B7C-1F39-4B41-AB71-91F4A9A81013}
 AppName={#MyAppName}
@@ -7,7 +7,7 @@ AppVersion={#MyAppVersion}
 DefaultDirName={autopf}\COMPELEC ONE\Pfarrbüro-KI
 DefaultGroupName=COMPELEC ONE
 OutputDir=..\dist
-OutputBaseFilename=COMPELEC_ONE_Pfarrbuero_KI_V2.0.1_Setup
+OutputBaseFilename=COMPELEC_ONE_Pfarrbuero_KI_V2.0.2_Setup
 Compression=lzma
 SolidCompression=yes
 ArchitecturesInstallIn64BitMode=x64compatible
