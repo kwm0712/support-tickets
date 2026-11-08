@@ -1,1 +1,2 @@
 pyinstaller==6.16.0
+psycopg[binary]==3.2.10
