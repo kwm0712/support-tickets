@@ -1,6 +1,6 @@
 -- COMPELEC ONE Pfarrbüro-KI V2.0 – Enterprise Core
 -- PostgreSQL 15+; additive initial migration for the existing V1.3 project line.
--- Apply as a database migration owner. Runtime roles must not own these tables.
+-- Apply as a migration owner. Runtime roles must not own these tables.
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
@@ -31,17 +31,22 @@ CREATE TABLE IF NOT EXISTS parish_org_units (
 );
 CREATE INDEX IF NOT EXISTS ix_parish_org_parent ON parish_org_units(tenant_id,parent_id);
 
+-- User identities are tenant-local in V2.0. A person working for multiple
+-- dioceses receives a separate membership identity per tenant until federation is implemented.
 CREATE TABLE IF NOT EXISTS parish_users (
  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+ tenant_id uuid NOT NULL REFERENCES parish_tenants(id) ON DELETE RESTRICT,
  email text NOT NULL,
  display_name text NOT NULL,
  identity_subject text NULL,
  status text NOT NULL DEFAULT 'active' CHECK (status IN ('active','disabled','invited')),
  created_at timestamptz NOT NULL DEFAULT now(),
- updated_at timestamptz NOT NULL DEFAULT now()
+ updated_at timestamptz NOT NULL DEFAULT now(),
+ CONSTRAINT uq_parish_user_tenant_id UNIQUE (tenant_id,id),
+ CONSTRAINT uq_parish_user_email UNIQUE (tenant_id,email)
 );
 CREATE UNIQUE INDEX IF NOT EXISTS uq_parish_user_identity_subject
- ON parish_users(identity_subject) WHERE identity_subject IS NOT NULL;
+ ON parish_users(tenant_id,identity_subject) WHERE identity_subject IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS parish_roles (
  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -63,11 +68,13 @@ CREATE TABLE IF NOT EXISTS parish_role_permissions (
 CREATE TABLE IF NOT EXISTS parish_memberships (
  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
  tenant_id uuid NOT NULL REFERENCES parish_tenants(id) ON DELETE RESTRICT,
- user_id uuid NOT NULL REFERENCES parish_users(id) ON DELETE RESTRICT,
+ user_id uuid NOT NULL,
  org_unit_id uuid NOT NULL,
  role_id uuid NOT NULL REFERENCES parish_roles(id) ON DELETE RESTRICT,
  status text NOT NULL DEFAULT 'active' CHECK (status IN ('active','revoked')),
  created_at timestamptz NOT NULL DEFAULT now(),
+ CONSTRAINT fk_parish_membership_user_same_tenant FOREIGN KEY (tenant_id,user_id)
+  REFERENCES parish_users(tenant_id,id) ON DELETE RESTRICT,
  CONSTRAINT fk_parish_membership_org_same_tenant FOREIGN KEY (tenant_id,org_unit_id)
   REFERENCES parish_org_units(tenant_id,id) ON DELETE RESTRICT,
  CONSTRAINT uq_parish_membership UNIQUE(tenant_id,user_id,org_unit_id,role_id)
@@ -87,13 +94,17 @@ CREATE TABLE IF NOT EXISTS parish_cases (
  priority text NOT NULL DEFAULT 'normal' CHECK (priority IN ('low','normal','high','urgent')),
  confidentiality text NOT NULL DEFAULT 'internal'
   CHECK (confidentiality IN ('public','internal','confidential','pastoral_secret')),
- assigned_user_id uuid NULL REFERENCES parish_users(id) ON DELETE RESTRICT,
+ assigned_user_id uuid NULL,
  due_at timestamptz NULL,
- created_by uuid NOT NULL REFERENCES parish_users(id) ON DELETE RESTRICT,
+ created_by uuid NOT NULL,
  created_at timestamptz NOT NULL DEFAULT now(),
  updated_at timestamptz NOT NULL DEFAULT now(),
  CONSTRAINT fk_parish_case_org_same_tenant FOREIGN KEY (tenant_id,org_unit_id)
   REFERENCES parish_org_units(tenant_id,id) ON DELETE RESTRICT,
+ CONSTRAINT fk_parish_case_assignee_same_tenant FOREIGN KEY (tenant_id,assigned_user_id)
+  REFERENCES parish_users(tenant_id,id) ON DELETE RESTRICT,
+ CONSTRAINT fk_parish_case_creator_same_tenant FOREIGN KEY (tenant_id,created_by)
+  REFERENCES parish_users(tenant_id,id) ON DELETE RESTRICT,
  CONSTRAINT uq_parish_case_number UNIQUE(tenant_id,case_number)
 );
 CREATE INDEX IF NOT EXISTS ix_parish_cases_queue ON parish_cases(tenant_id,org_unit_id,status,updated_at DESC);
@@ -112,19 +123,21 @@ CREATE TABLE IF NOT EXISTS parish_documents (
   CHECK (classification IN ('public','internal','confidential','pastoral_secret')),
  approval_status text NOT NULL DEFAULT 'draft'
   CHECK (approval_status IN ('draft','approved','rejected','archived')),
- uploaded_by uuid NOT NULL REFERENCES parish_users(id) ON DELETE RESTRICT,
+ uploaded_by uuid NOT NULL,
  created_at timestamptz NOT NULL DEFAULT now(),
  CONSTRAINT fk_parish_document_org_same_tenant FOREIGN KEY (tenant_id,org_unit_id)
   REFERENCES parish_org_units(tenant_id,id) ON DELETE RESTRICT,
  CONSTRAINT fk_parish_document_case_same_tenant FOREIGN KEY (tenant_id,case_id)
   REFERENCES parish_cases(tenant_id,id) ON DELETE RESTRICT,
+ CONSTRAINT fk_parish_document_uploader_same_tenant FOREIGN KEY (tenant_id,uploaded_by)
+  REFERENCES parish_users(tenant_id,id) ON DELETE RESTRICT,
  CONSTRAINT uq_parish_document_hash UNIQUE(tenant_id,org_unit_id,sha256)
 );
 
 CREATE TABLE IF NOT EXISTS parish_audit_events (
  id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
  tenant_id uuid NOT NULL REFERENCES parish_tenants(id) ON DELETE RESTRICT,
- actor_user_id uuid NULL REFERENCES parish_users(id) ON DELETE RESTRICT,
+ actor_user_id uuid NULL,
  org_unit_id uuid NULL,
  event_type text NOT NULL,
  entity_type text NOT NULL,
@@ -133,6 +146,8 @@ CREATE TABLE IF NOT EXISTS parish_audit_events (
  correlation_id uuid NULL,
  metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
  occurred_at timestamptz NOT NULL DEFAULT now(),
+ CONSTRAINT fk_parish_audit_actor_same_tenant FOREIGN KEY (tenant_id,actor_user_id)
+  REFERENCES parish_users(tenant_id,id) ON DELETE RESTRICT,
  CONSTRAINT fk_parish_audit_org_same_tenant FOREIGN KEY (tenant_id,org_unit_id)
   REFERENCES parish_org_units(tenant_id,id) ON DELETE RESTRICT
 );
@@ -158,14 +173,23 @@ INSERT INTO parish_permissions(permission_key,description) VALUES
  ('pastoral_secret.read','Besonders geschützte Seelsorgevorgänge lesen')
 ON CONFLICT(permission_key) DO NOTHING;
 
--- Tenant-scoped RLS. Runtime sets app.tenant_id with SET LOCAL per transaction.
+-- Tenant table uses its own primary key as the session tenant identifier.
+ALTER TABLE parish_tenants ENABLE ROW LEVEL SECURITY;
+ALTER TABLE parish_tenants FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON parish_tenants;
+CREATE POLICY tenant_isolation ON parish_tenants
+ USING (id = nullif(current_setting('app.tenant_id',true),'')::uuid)
+ WITH CHECK (id = nullif(current_setting('app.tenant_id',true),'')::uuid);
+
+-- Tenant-scoped tables. Runtime sets app.tenant_id with SET LOCAL per transaction.
 DO $$
 DECLARE table_name text;
 BEGIN
- FOREACH table_name IN ARRAY ARRAY['parish_org_units','parish_memberships','parish_cases','parish_documents','parish_audit_events']
+ FOREACH table_name IN ARRAY ARRAY['parish_org_units','parish_users','parish_memberships','parish_cases','parish_documents','parish_audit_events']
  LOOP
   EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY',table_name);
   EXECUTE format('ALTER TABLE %I FORCE ROW LEVEL SECURITY',table_name);
+  EXECUTE format('DROP POLICY IF EXISTS tenant_isolation ON %I',table_name);
   EXECUTE format(
    'CREATE POLICY tenant_isolation ON %I USING (tenant_id = nullif(current_setting(''app.tenant_id'',true),'''')::uuid) WITH CHECK (tenant_id = nullif(current_setting(''app.tenant_id'',true),'''')::uuid)',
    table_name
