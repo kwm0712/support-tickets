@@ -1,11 +1,11 @@
-name: Pfarrbüro-KI V2.0.1 Secure API
+name: Pfarrbüro-KI V2.0.2 Secure API
 on:
   push:
     branches:
-      - agent/pfarrbuero-ki-v2.0.1-secure-api
+      - agent/pfarrbuero-ki-v2.0.2-oidc-pkce
   pull_request:
     branches:
-      - agent/pfarrbuero-ki-v2.0.1-secure-api
+      - agent/pfarrbuero-ki-v2.0.2-oidc-pkce
   workflow_dispatch:
 
 jobs:
@@ -60,7 +60,7 @@ jobs:
       - name: Upload API source bundle
         uses: actions/upload-artifact@v4
         with:
-          name: COMPELEC_ONE_Pfarrbuero_KI_V2.0.1_API_sources
+          name: COMPELEC_ONE_Pfarrbuero_KI_V2.0.2_API_sources
           path: |
             pfarrbuero/api.py
             pfarrbuero/security.py
