@@ -174,6 +174,30 @@ INSERT INTO parish_permissions(permission_key,description) VALUES
  ('pastoral_secret.read','Besonders geschützte Seelsorgevorgänge lesen')
 ON CONFLICT(permission_key) DO NOTHING;
 
+-- Default least-privilege permission map. Pastoral-secret access is deliberately
+-- not inherited by general administrators or Pfarrbüro roles.
+WITH grants(role_key, permission_key) AS (
+ VALUES
+ ('bistum_admin','tenant.read'),('bistum_admin','tenant.admin'),
+ ('bistum_admin','org.read'),('bistum_admin','org.admin'),('bistum_admin','user.admin'),
+ ('bistum_admin','case.read'),('bistum_admin','case.create'),('bistum_admin','case.update'),('bistum_admin','case.assign'),
+ ('bistum_admin','document.read'),('bistum_admin','document.upload'),('bistum_admin','document.approve'),('bistum_admin','audit.read'),
+ ('pastoralraum_admin','org.read'),('pastoralraum_admin','user.admin'),
+ ('pastoralraum_admin','case.read'),('pastoralraum_admin','case.create'),('pastoralraum_admin','case.update'),('pastoralraum_admin','case.assign'),
+ ('pastoralraum_admin','document.read'),('pastoralraum_admin','document.upload'),('pastoralraum_admin','audit.read'),
+ ('pfarrbuero','org.read'),('pfarrbuero','case.read'),('pfarrbuero','case.create'),('pfarrbuero','case.update'),
+ ('pfarrbuero','document.read'),('pfarrbuero','document.upload'),
+ ('seelsorge','org.read'),('seelsorge','case.read'),('seelsorge','case.create'),('seelsorge','case.update'),('seelsorge','pastoral_secret.read'),
+ ('ehrenamt','org.read'),('ehrenamt','case.read'),('ehrenamt','case.create'),('ehrenamt','case.update'),
+ ('read_only','org.read'),('read_only','case.read'),('read_only','document.read')
+)
+INSERT INTO parish_role_permissions(role_id,permission_id)
+SELECT r.id,p.id
+FROM grants g
+JOIN parish_roles r ON r.role_key=g.role_key
+JOIN parish_permissions p ON p.permission_key=g.permission_key
+ON CONFLICT(role_id,permission_id) DO NOTHING;
+
 -- Tenant table uses its own primary key as the session tenant identifier.
 ALTER TABLE parish_tenants ENABLE ROW LEVEL SECURITY;
 ALTER TABLE parish_tenants FORCE ROW LEVEL SECURITY;
