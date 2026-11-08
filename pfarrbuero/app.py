@@ -82,7 +82,7 @@ class App(tk.Tk):
             fg="#005B96", bg="white"
         ).pack(side="left", padx=24)
         tk.Label(
-            top, text="Pfarrbüro-KI   ·   V2.0 Entwicklungsstand",
+            top, text="Pfarrbüro-KI   ·   V2.0.1 Entwicklungsstand",
             font=("Segoe UI", 11), fg="#50616d", bg="white"
         ).pack(side="left")
         tk.Label(
