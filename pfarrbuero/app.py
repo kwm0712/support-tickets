@@ -50,7 +50,7 @@ class App(tk.Tk):
             try:
                 self.auth_client = OidcAuthClient()
                 try:
-                    token = self.auth_client.access_token()
+                    self.auth_client.access_token()
                     self.api_store = ApiCaseStore(self.api_url, self.auth_client.access_token)
                     self.api_store.health_check()
                     self.backend_label = "SECURE API · ANGEMELDET"
@@ -97,10 +97,11 @@ class App(tk.Tk):
             ttk.Button(top, text="Anmelden", command=self.login).pack(side="right", padx=(4, 12))
             if self.auth_client:
                 ttk.Button(top, text="Abmelden", command=self.logout).pack(side="right", padx=4)
-        tk.Label(
+        self.backend_status = tk.Label(
             top, text=self.backend_label, font=("Segoe UI", 9, "bold"),
             fg="#005B96" if self.api_store else "#8a5a00", bg="white"
-        ).pack(side="right", padx=12)
+        )
+        self.backend_status.pack(side="right", padx=12)
 
         body = tk.Frame(self, bg="#f4f8fb")
         body.pack(fill="both", expand=True)
@@ -126,16 +127,18 @@ class App(tk.Tk):
             messagebox.showerror("OIDC nicht konfiguriert", self.backend_error or "OIDC-Konfiguration fehlt.")
             return
         try:
-            token = self.auth_client.login()
-            self.api_store = ApiCaseStore(self.api_url, token)
+            self.auth_client.login()
+            self.api_store = ApiCaseStore(self.api_url, self.auth_client.access_token)
             self.api_store.health_check()
             self.backend_error = None
             self.backend_label = "SECURE API · ANGEMELDET"
+            self.backend_status.configure(text=self.backend_label, fg="#005B96")
             self.show("Dashboard")
         except Exception as exc:
             self.api_store = None
             self.backend_error = str(exc)
             self.backend_label = "ANMELDUNG FEHLGESCHLAGEN"
+            self.backend_status.configure(text=self.backend_label, fg="#9b1c1c")
             messagebox.showerror("Anmeldung fehlgeschlagen", str(exc))
             self.show("Dashboard")
 
@@ -145,6 +148,7 @@ class App(tk.Tk):
         self.api_store = None
         self.backend_error = "Bitte über die Schaltfläche Anmelden erneut anmelden."
         self.backend_label = "ABGEMELDET"
+        self.backend_status.configure(text=self.backend_label, fg="#8a5a00")
         self.show("Dashboard")
 
     def clear(self):
@@ -203,7 +207,7 @@ class App(tk.Tk):
         if self.backend_error:
             tk.Label(
                 self.content,
-                text="PostgreSQL wurde ausdrücklich konfiguriert, ist aber nicht verfügbar.\n"
+                text="Der produktive API-Zugriff ist derzeit nicht verfügbar.\n"
                      "Aus Sicherheitsgründen wird nicht auf Demo-Daten zurückgeschaltet.\n\n"
                      + self.backend_error,
                 font=("Segoe UI", 11), fg="#9b1c1c", bg="#f4f8fb",
