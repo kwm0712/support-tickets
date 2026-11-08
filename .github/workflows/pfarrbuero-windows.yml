@@ -3,6 +3,7 @@ on:
   push:
     branches:
       - agent/pfarrbuero-ki-v2.0-enterprise-core
+      - agent/pfarrbuero-ki-v2.0.1-secure-api
   workflow_dispatch:
 jobs:
   windows:
@@ -15,7 +16,7 @@ jobs:
       - name: Install application and packaging dependencies
         run: python -m pip install --upgrade pip && pip install -r pfarrbuero/requirements.txt
       - name: Compile Python sources
-        run: python -m py_compile pfarrbuero/app.py pfarrbuero/repository.py
+        run: python -m py_compile pfarrbuero/app.py pfarrbuero/api_client.py pfarrbuero/repository.py
       - name: Build EXE
         shell: pwsh
         run: pyinstaller --noconfirm --clean --onefile --windowed --name COMPELEC_ONE_Pfarrbuero_KI pfarrbuero/app.py
@@ -28,7 +29,7 @@ jobs:
           Start-Sleep -Seconds 5
           if ($process.HasExited) { throw "Pfarrbüro-KI EXE exited during startup (ExitCode=$($process.ExitCode))" }
           Stop-Process -Id $process.Id -Force
-          Get-FileHash $exe -Algorithm SHA256 | Out-File "dist/COMPELEC_ONE_Pfarrbuero_KI_V2.0_EXE_SHA256.txt"
+          Get-FileHash $exe -Algorithm SHA256 | Out-File "dist/COMPELEC_ONE_Pfarrbuero_KI_V2.0.1_EXE_SHA256.txt"
       - name: Build Setup
         shell: pwsh
         run: |
@@ -37,15 +38,15 @@ jobs:
       - name: Verify setup and checksum
         shell: pwsh
         run: |
-          $setup = "dist/COMPELEC_ONE_Pfarrbuero_KI_V2.0_Setup.exe"
+          $setup = "dist/COMPELEC_ONE_Pfarrbuero_KI_V2.0.1_Setup.exe"
           if (!(Test-Path $setup)) { throw "Setup missing: $setup" }
-          Get-FileHash $setup -Algorithm SHA256 | Out-File "dist/COMPELEC_ONE_Pfarrbuero_KI_V2.0_Setup_SHA256.txt"
+          Get-FileHash $setup -Algorithm SHA256 | Out-File "dist/COMPELEC_ONE_Pfarrbuero_KI_V2.0.1_Setup_SHA256.txt"
       - uses: actions/upload-artifact@v4
         with:
-          name: COMPELEC_ONE_Pfarrbuero_KI_V2.0_Windows_preview
+          name: COMPELEC_ONE_Pfarrbuero_KI_V2.0.1_Windows_preview
           path: |
             dist/COMPELEC_ONE_Pfarrbuero_KI.exe
-            dist/COMPELEC_ONE_Pfarrbuero_KI_V2.0_Setup.exe
+            dist/COMPELEC_ONE_Pfarrbuero_KI_V2.0.1_Setup.exe
             dist/*SHA256.txt
           if-no-files-found: error
           retention-days: 30

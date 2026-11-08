@@ -4,10 +4,10 @@ import tkinter as tk
 from pathlib import Path
 from tkinter import messagebox, simpledialog, ttk
 
-from repository import PostgresCaseStore, StoreConfig
+from api_client import ApiCaseStore
 
 APP = "COMPELEC ONE Pfarrbüro-KI"
-VERSION = "2.0.0-dev"
+VERSION = "2.0.1-dev"
 DATA = Path(os.getenv("LOCALAPPDATA", str(Path.home()))) / "COMPELEC ONE" / "Pfarrbuero-KI"
 DATA.mkdir(parents=True, exist_ok=True)
 DB = DATA / "pfarrbuero_demo.db"
@@ -40,18 +40,21 @@ class App(tk.Tk):
         self.minsize(1000, 700)
         self.configure(bg="#f4f8fb")
 
-        self.pg_store = None
+        self.api_store = None
         self.backend_error = None
         self.conn = None
-        if os.getenv("PFARRBUERO_DATABASE_URL"):
+        if os.getenv("PFARRBUERO_API_URL"):
             try:
-                self.pg_store = PostgresCaseStore(StoreConfig.from_env())
-                self.pg_store.health_check()
-                self.backend_label = "POSTGRESQL · ENTWICKLUNG"
+                self.api_store = ApiCaseStore()
+                self.api_store.health_check()
+                self.backend_label = "SECURE API · OIDC"
             except Exception as exc:
                 # Fail closed: do not fall back to demo data when PostgreSQL was requested.
                 self.backend_error = str(exc)
-                self.backend_label = "POSTGRESQL · VERBINDUNGSFEHLER"
+                self.backend_label = "API · VERBINDUNGSFEHLER"
+        elif os.getenv("PFARRBUERO_DATABASE_URL"):
+            self.backend_error = "Direkter PostgreSQL-Zugriff aus der Desktop-Anwendung ist deaktiviert. Bitte PFARRBUERO_API_URL und ein gültiges OIDC-Zugriffstoken konfigurieren."
+            self.backend_label = "API-KONFIGURATION FEHLT"
         else:
             self.conn = demo_db()
             self.backend_label = "DEMO-DATEN · SQLite"
@@ -79,12 +82,12 @@ class App(tk.Tk):
             fg="#005B96", bg="white"
         ).pack(side="left", padx=24)
         tk.Label(
-            top, text="Pfarrbüro-KI   ·   V2.0 Entwicklungsstand",
+            top, text="Pfarrbüro-KI   ·   V2.0.1 Entwicklungsstand",
             font=("Segoe UI", 11), fg="#50616d", bg="white"
         ).pack(side="left")
         tk.Label(
             top, text=self.backend_label, font=("Segoe UI", 9, "bold"),
-            fg="#005B96" if self.pg_store else "#8a5a00", bg="white"
+            fg="#005B96" if self.api_store else "#8a5a00", bg="white"
         ).pack(side="right", padx=22)
 
         body = tk.Frame(self, bg="#f4f8fb")
@@ -123,8 +126,8 @@ class App(tk.Tk):
         return frame
 
     def case_rows(self):
-        if self.pg_store:
-            return self.pg_store.list_cases()
+        if self.api_store:
+            return self.api_store.list_cases()
         if self.conn:
             return self.conn.execute(
                 "select typ,name,status from cases order by id desc"
@@ -139,8 +142,8 @@ class App(tk.Tk):
         if not subject:
             return
         try:
-            if self.pg_store:
-                self.pg_store.create_case(case_type, subject)
+            if self.api_store:
+                self.api_store.create_case(case_type, subject)
             elif self.conn:
                 self.conn.execute(
                     "insert into cases(typ,name,status) values(?,?,?)",
@@ -179,7 +182,7 @@ class App(tk.Tk):
             self.card(row, "Offene Vorgänge", str(open_count))
             self.card(
                 row, "Datenbank",
-                "PostgreSQL-Mandantenmodus (Entwicklung)" if self.pg_store
+                "Zentraler API-Zugriff mit OIDC-Token" if self.api_store
                 else "Lokaler Demo-Modus – keine produktiven Daten"
             )
             self.card(

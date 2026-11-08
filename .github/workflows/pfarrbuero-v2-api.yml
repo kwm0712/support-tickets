@@ -1,0 +1,73 @@
+name: Pfarrbüro-KI V2.0.1 Secure API
+on:
+  push:
+    branches:
+      - agent/pfarrbuero-ki-v2.0.1-secure-api
+  pull_request:
+    branches:
+      - agent/pfarrbuero-ki-v2.0.1-secure-api
+  workflow_dispatch:
+
+jobs:
+  api-and-postgres:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: pfarrbuero
+          POSTGRES_PASSWORD: pfarrbuero-ci
+          POSTGRES_DB: pfarrbuero_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U pfarrbuero -d pfarrbuero_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        run: python -m pip install --upgrade pip && pip install -r pfarrbuero/requirements.txt
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+      - name: Apply enterprise schema
+        env:
+          PGPASSWORD: pfarrbuero-ci
+        run: |
+          psql -h 127.0.0.1 -U pfarrbuero -d pfarrbuero_test -v ON_ERROR_STOP=1 -f pfarrbuero/migrations/postgres/0001_enterprise_core.sql
+          psql -h 127.0.0.1 -U pfarrbuero -d pfarrbuero_test -v ON_ERROR_STOP=1 -f pfarrbuero/migrations/postgres/0001_enterprise_core.sql
+      - name: Prepare runtime role and tenant test fixtures
+        env:
+          PGPASSWORD: pfarrbuero-ci
+        run: |
+          psql -h 127.0.0.1 -U pfarrbuero -d pfarrbuero_test -v ON_ERROR_STOP=1 -f pfarrbuero/tests/test_enterprise_core.sql
+      - name: Run API boundary and PostgreSQL integration tests
+        env:
+          PFARRBUERO_TEST_DATABASE_URL: postgresql://pfarrbuero_runtime:runtime-test-password@127.0.0.1:5432/pfarrbuero_test
+          PFARRBUERO_TENANT_ID: 10000000-0000-0000-0000-000000000001
+          PFARRBUERO_ORG_UNIT_ID: 10000000-0000-0000-0000-000000000011
+          PFARRBUERO_USER_ID: 10000000-0000-0000-0000-000000000101
+          PYTHONPATH: pfarrbuero
+        run: python -m unittest discover -s pfarrbuero/tests -p 'test_*.py' -v
+      - name: Compile application and API
+        run: python -m py_compile pfarrbuero/app.py pfarrbuero/api_client.py pfarrbuero/api.py pfarrbuero/security.py pfarrbuero/repository.py
+      - name: Upload API source bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: COMPELEC_ONE_Pfarrbuero_KI_V2.0.1_API_sources
+          path: |
+            pfarrbuero/api.py
+            pfarrbuero/security.py
+            pfarrbuero/api_client.py
+            pfarrbuero/repository.py
+            pfarrbuero/requirements.txt
+            pfarrbuero/tests/test_api.py
+            pfarrbuero/docs/V2.0.1_API_SETUP.md
+          if-no-files-found: error
+          retention-days: 30

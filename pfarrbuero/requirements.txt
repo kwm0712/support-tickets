@@ -1,2 +1,6 @@
 pyinstaller==6.16.0
 psycopg[binary]==3.2.10
+fastapi==0.115.12
+uvicorn[standard]==0.34.2
+PyJWT[crypto]==2.10.1
+httpx==0.28.1
