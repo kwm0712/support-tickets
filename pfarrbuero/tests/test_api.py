@@ -43,8 +43,8 @@ class ApiBoundaryTests(unittest.TestCase):
         finally:
             self.app.dependency_overrides.clear()
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json()["tenant_id"], "tenant-from-signed-token")
-        self.assertEqual(response.json()["user_id"], "user-from-signed-token")
+        self.assertEqual(response.json()["tenant_id"], "10000000-0000-0000-0000-000000000001")
+        self.assertEqual(response.json()["user_id"], "10000000-0000-0000-0000-000000000101")
 
     def test_store_context_is_derived_from_principal_not_client_input(self):
         with patch.dict(os.environ, {"PFARRBUERO_DATABASE_URL": "postgresql://api-db/test"}):
