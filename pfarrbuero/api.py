@@ -52,7 +52,7 @@ def get_current_principal(
         )
     try:
         return decode_access_token(credentials.credentials)
-    except (jwt.PyJWTError, RuntimeError) as exc:
+    except jwt.PyJWTError as exc:
         # Do not disclose token-validation internals to clients.
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
