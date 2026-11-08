@@ -27,6 +27,12 @@ jobs:
           --health-retries 10
     steps:
       - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install application dependencies
+        run: python -m pip install --upgrade pip && pip install -r pfarrbuero/requirements.txt
       - name: Install PostgreSQL client
         run: |
           sudo apt-get update
@@ -42,12 +48,25 @@ jobs:
           PGPASSWORD: pfarrbuero-ci
         run: |
           psql -h 127.0.0.1 -U pfarrbuero -d pfarrbuero_test -v ON_ERROR_STOP=1 -f pfarrbuero/tests/test_enterprise_core.sql
+      - name: Run PostgreSQL repository integration tests
+        env:
+          PFARRBUERO_TEST_DATABASE_URL: postgresql://pfarrbuero_runtime:runtime-test-password@127.0.0.1:5432/pfarrbuero_test
+          PFARRBUERO_TENANT_ID: 10000000-0000-0000-0000-000000000001
+          PFARRBUERO_ORG_UNIT_ID: 10000000-0000-0000-0000-000000000011
+          PFARRBUERO_USER_ID: 10000000-0000-0000-0000-000000000101
+          PYTHONPATH: pfarrbuero
+        run: python -m unittest discover -s pfarrbuero/tests -p 'test_*.py' -v
+      - name: Compile application sources
+        run: python -m py_compile pfarrbuero/app.py pfarrbuero/repository.py
       - name: Publish migration and test sources
         uses: actions/upload-artifact@v4
         with:
           name: pfarrbuero-ki-v2-enterprise-core-sources
           path: |
             pfarrbuero/VERSION
+            pfarrbuero/app.py
+            pfarrbuero/repository.py
+            pfarrbuero/requirements.txt
             pfarrbuero/migrations/postgres/0001_enterprise_core.sql
             pfarrbuero/tests/test_enterprise_core.sql
             pfarrbuero/docs/V2.0_ENTERPRISE_CORE.md
