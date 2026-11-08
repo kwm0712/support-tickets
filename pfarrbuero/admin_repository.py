@@ -15,33 +15,26 @@ class AdminConfig:
 
 class AdminRepository:
     """Administration operations; writes and audit events share one transaction."""
-    def __init__(self, config: AdminConfig):
-        self.config = config
-    def _connect(self):
-        return psycopg.connect(self.config.dsn, row_factory=dict_row)
-    def _set_context(self, conn):
-        conn.execute("SELECT set_config('app.tenant_id', %s, true)", (self.config.tenant_id,))
-    def _require(self, conn, permission):
-        row = conn.execute("""
-            WITH RECURSIVE scope(id,parent_id) AS (
-              SELECT id,parent_id FROM parish_org_units WHERE id=%s AND tenant_id=%s
-              UNION ALL SELECT p.id,p.parent_id FROM parish_org_units p
-              JOIN scope c ON c.parent_id=p.id WHERE p.tenant_id=%s
-            )
-            SELECT EXISTS (
-              SELECT 1 FROM parish_memberships m
-              JOIN parish_roles r ON r.id=m.role_id
-              JOIN parish_role_permissions rp ON rp.role_id=r.id
-              JOIN parish_permissions p ON p.id=rp.permission_id
-              JOIN scope s ON s.id=m.org_unit_id
-              WHERE m.tenant_id=%s AND m.user_id=%s AND m.status='active'
-                AND p.permission_key=%s
-            ) AS allowed
-        """, (self.config.org_unit_id,self.config.tenant_id,self.config.tenant_id,
-              self.config.tenant_id,self.config.actor_user_id,permission)).fetchone()
-        if not row or not row["allowed"]:
-            raise PermissionError(f"Fehlende Berechtigung: {permission}")
-    def _audit(self, conn, event, entity_type, entity_id, metadata):
+    def __init__(self, config: AdminConfig): self.config=config
+    def _connect(self): return psycopg.connect(self.config.dsn,row_factory=dict_row)
+    def _set_context(self,conn):
+        conn.execute("SELECT set_config('app.tenant_id', %s, true)",(self.config.tenant_id,))
+    def _require(self,conn,permission):
+        row=conn.execute("""WITH RECURSIVE scope(id,parent_id) AS (
+          SELECT id,parent_id FROM parish_org_units WHERE id=%s AND tenant_id=%s
+          UNION ALL SELECT p.id,p.parent_id FROM parish_org_units p
+          JOIN scope c ON c.parent_id=p.id WHERE p.tenant_id=%s)
+          SELECT EXISTS(SELECT 1 FROM parish_memberships m
+            JOIN parish_roles r ON r.id=m.role_id
+            JOIN parish_role_permissions rp ON rp.role_id=r.id
+            JOIN parish_permissions p ON p.id=rp.permission_id
+            JOIN scope s ON s.id=m.org_unit_id
+            WHERE m.tenant_id=%s AND m.user_id=%s AND m.status='active'
+              AND p.permission_key=%s) AS allowed""",
+          (self.config.org_unit_id,self.config.tenant_id,self.config.tenant_id,
+           self.config.tenant_id,self.config.actor_user_id,permission)).fetchone()
+        if not row or not row["allowed"]: raise PermissionError(f"Fehlende Berechtigung: {permission}")
+    def _audit(self,conn,event,entity_type,entity_id,metadata):
         conn.execute("""INSERT INTO parish_audit_events
           (tenant_id,actor_user_id,org_unit_id,event_type,entity_type,entity_id,outcome,metadata)
           VALUES (%s,%s,%s,%s,%s,%s,'success',%s::jsonb)""",
@@ -59,7 +52,7 @@ class AdminRepository:
               ORDER BY depth,display_name""",
               (self.config.org_unit_id,self.config.tenant_id,self.config.tenant_id)).fetchall()
             return [dict(x) for x in rows]
-    def create_org_unit(self, unit_type, unit_key, display_name, parent_id):
+    def create_org_unit(self,unit_type,unit_key,display_name,parent_id):
         parents={"diocese":{None},"pastoral_region":{"diocese"},"parish":{"pastoral_region"},"parish_office":{"parish"}}
         if unit_type not in parents: raise ValueError("Ungültiger Organisationstyp.")
         if not unit_key.strip() or not display_name.strip(): raise ValueError("Schlüssel und Bezeichnung sind Pflichtfelder.")
@@ -67,6 +60,7 @@ class AdminRepository:
         if unit_type!="diocese" and parent_id is None: raise ValueError("Übergeordnete Organisationseinheit erforderlich.")
         with self._connect() as conn:
             self._set_context(conn); self._require(conn,"org.admin")
+            if unit_type=="diocese": self._require(conn,"tenant.admin")
             if parent_id:
                 parent=conn.execute("SELECT unit_type FROM parish_org_units WHERE id=%s AND tenant_id=%s",
                                     (parent_id,self.config.tenant_id)).fetchone()
@@ -84,12 +78,18 @@ class AdminRepository:
     def list_users(self):
         with self._connect() as conn:
             self._set_context(conn); self._require(conn,"user.admin")
-            rows=conn.execute("""SELECT u.id,u.email,u.display_name,u.status,
-              count(m.id) FILTER (WHERE m.status='active') AS active_memberships
-              FROM parish_users u LEFT JOIN parish_memberships m
-              ON m.tenant_id=u.tenant_id AND m.user_id=u.id
+            rows=conn.execute("""WITH RECURSIVE scope(id,parent_id) AS (
+              SELECT id,parent_id FROM parish_org_units WHERE id=%s AND tenant_id=%s
+              UNION ALL SELECT c.id,c.parent_id FROM parish_org_units c
+                JOIN scope p ON c.parent_id=p.id WHERE c.tenant_id=%s)
+              SELECT u.id,u.email,u.display_name,u.status,
+                count(m.id) FILTER (WHERE m.status='active') AS active_memberships
+              FROM parish_users u JOIN parish_memberships visible
+                ON visible.tenant_id=u.tenant_id AND visible.user_id=u.id AND visible.status='active'
+              JOIN scope s ON s.id=visible.org_unit_id
+              LEFT JOIN parish_memberships m ON m.tenant_id=u.tenant_id AND m.user_id=u.id
               WHERE u.tenant_id=%s GROUP BY u.id ORDER BY u.display_name""",
-              (self.config.tenant_id,)).fetchall()
+              (self.config.org_unit_id,self.config.tenant_id,self.config.tenant_id,self.config.tenant_id)).fetchall()
             return [dict(x) for x in rows]
     def create_user(self,email,display_name):
         email=email.strip().lower(); display_name=display_name.strip()
@@ -117,7 +117,6 @@ class AdminRepository:
         except ValueError as exc: raise ValueError("Benutzer- und Organisationseinheits-ID müssen UUIDs sein.") from exc
         with self._connect() as conn:
             self._set_context(conn); self._require(conn,"user.admin")
-            if role_key=="bistum_admin": self._require(conn,"tenant.admin")
             user=conn.execute("SELECT id FROM parish_users WHERE id=%s AND tenant_id=%s AND status<>'disabled'",
                               (user_id,self.config.tenant_id)).fetchone()
             org=conn.execute("SELECT id FROM parish_org_units WHERE id=%s AND tenant_id=%s",
@@ -125,6 +124,11 @@ class AdminRepository:
             role=conn.execute("SELECT id FROM parish_roles WHERE role_key=%s",(role_key,)).fetchone()
             if not user or not org or not role: raise ValueError("Benutzer, Organisationseinheit oder Rolle nicht gefunden.")
             self._require_scope(conn,org_unit_id)
+            elevated=conn.execute("""SELECT EXISTS(
+              SELECT 1 FROM parish_role_permissions rp JOIN parish_permissions p ON p.id=rp.permission_id
+              WHERE rp.role_id=%s AND p.permission_key IN ('tenant.admin','org.admin','user.admin','pastoral_secret.read')
+            ) AS elevated""",(role["id"],)).fetchone()["elevated"]
+            if elevated: self._require(conn,"tenant.admin")
             row=conn.execute("""INSERT INTO parish_memberships(tenant_id,user_id,org_unit_id,role_id,status)
               VALUES (%s,%s,%s,%s,'active')
               ON CONFLICT (tenant_id,user_id,org_unit_id,role_id) DO UPDATE SET status='active'
@@ -140,5 +144,4 @@ class AdminRepository:
           JOIN scope c ON c.parent_id=p.id WHERE p.tenant_id=%s)
           SELECT EXISTS(SELECT 1 FROM scope WHERE id=%s) AS allowed""",
           (target_org_id,self.config.tenant_id,self.config.tenant_id,self.config.org_unit_id)).fetchone()
-        if not row or not row["allowed"]:
-            raise PermissionError("Zielorganisation liegt außerhalb des eigenen Verwaltungsbereichs.")
+        if not row or not row["allowed"]: raise PermissionError("Zielorganisation liegt außerhalb des eigenen Verwaltungsbereichs.")
