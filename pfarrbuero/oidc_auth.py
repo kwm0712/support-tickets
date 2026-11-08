@@ -95,6 +95,11 @@ class OidcAuthClient:
         )
         if not secrets.compare_digest(str(claims.get("nonce", "")), nonce):
             raise jwt.InvalidTokenError("OIDC nonce stimmt nicht überein.")
+        audiences = claims.get("aud", [])
+        if isinstance(audiences, str):
+            audiences = [audiences]
+        if len(audiences) > 1 and claims.get("azp") != self.client_id:
+            raise jwt.InvalidTokenError("OIDC azp fehlt oder stimmt nicht mit der Client-ID überein.")
 
     def _exchange(self, data: dict[str, str]) -> dict[str, Any]:
         metadata = self._discovery()
@@ -123,6 +128,9 @@ class OidcAuthClient:
         class CallbackHandler(BaseHTTPRequestHandler):
             def do_GET(self):
                 parsed = urllib.parse.urlparse(self.path)
+                if parsed.path != "/callback":
+                    self.send_error(404)
+                    return
                 query = urllib.parse.parse_qs(parsed.query)
                 received["state"] = query.get("state", [""])[0]
                 received["code"] = query.get("code", [""])[0]
