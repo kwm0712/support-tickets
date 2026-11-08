@@ -2,21 +2,19 @@
 from __future__ import annotations
 
 import json
-import os
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
+from collections.abc import Callable
 
 
 class ApiCaseStore:
-    def __init__(self, base_url: str | None = None, access_token: str | None = None):
-        self.base_url = (base_url or os.getenv("PFARRBUERO_API_URL", "")).rstrip("/")
-        self.access_token = access_token or os.getenv("PFARRBUERO_ACCESS_TOKEN", "")
+    def __init__(self, base_url: str, token_provider: Callable[[], str]):
+        self.base_url = base_url.rstrip("/")
+        self.token_provider = token_provider
         if not self.base_url:
             raise RuntimeError("PFARRBUERO_API_URL ist nicht konfiguriert.")
-        if not self.access_token:
-            raise RuntimeError(
-                "Kein Zugriffstoken vorhanden. Bitte über den vorgesehenen OIDC-Anmeldeweg anmelden."
-            )
+        if not callable(self.token_provider):
+            raise RuntimeError("Ein OIDC-Tokenprovider ist erforderlich.")
 
     def _request(self, method: str, path: str, payload=None):
         body = None if payload is None else json.dumps(payload).encode("utf-8")
@@ -25,7 +23,7 @@ class ApiCaseStore:
             data=body,
             method=method,
             headers={
-                "Authorization": f"Bearer {self.access_token}",
+                "Authorization": f"Bearer {self.token_provider()}",
                 "Accept": "application/json",
                 "Content-Type": "application/json",
             },
