@@ -19,11 +19,16 @@ jobs:
       - name: Build EXE
         shell: pwsh
         run: pyinstaller --noconfirm --clean --onefile --windowed --name COMPELEC_ONE_Pfarrbuero_KI pfarrbuero/app.py
-      - name: Smoke test executable
+      - name: Launch EXE and verify startup
         shell: pwsh
         run: |
-          if (!(Test-Path "dist/COMPELEC_ONE_Pfarrbuero_KI.exe")) { throw "EXE missing" }
-          Get-FileHash "dist/COMPELEC_ONE_Pfarrbuero_KI.exe" -Algorithm SHA256 | Out-File "dist/COMPELEC_ONE_Pfarrbuero_KI_V2.0_EXE_SHA256.txt"
+          $exe = Join-Path $PWD "dist/COMPELEC_ONE_Pfarrbuero_KI.exe"
+          if (!(Test-Path $exe)) { throw "EXE missing" }
+          $process = Start-Process -FilePath $exe -PassThru
+          Start-Sleep -Seconds 5
+          if ($process.HasExited) { throw "Pfarrbüro-KI EXE exited during startup (ExitCode=$($process.ExitCode))" }
+          Stop-Process -Id $process.Id -Force
+          Get-FileHash $exe -Algorithm SHA256 | Out-File "dist/COMPELEC_ONE_Pfarrbuero_KI_V2.0_EXE_SHA256.txt"
       - name: Build Setup
         shell: pwsh
         run: |
