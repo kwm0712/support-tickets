@@ -39,15 +39,15 @@ jobs:
       - name: Verify setup and checksum
         shell: pwsh
         run: |
-          $setup = "dist/COMPELEC_ONE_Pfarrbuero_KI_V2.0.1_Setup.exe"
+          $setup = "dist/COMPELEC_ONE_Pfarrbuero_KI_V2.0.2_Setup.exe"
           if (!(Test-Path $setup)) { throw "Setup missing: $setup" }
-          Get-FileHash $setup -Algorithm SHA256 | Out-File "dist/COMPELEC_ONE_Pfarrbuero_KI_V2.0.1_Setup_SHA256.txt"
+          Get-FileHash $setup -Algorithm SHA256 | Out-File "dist/COMPELEC_ONE_Pfarrbuero_KI_V2.0.2_Setup_SHA256.txt"
       - uses: actions/upload-artifact@v4
         with:
-          name: COMPELEC_ONE_Pfarrbuero_KI_V2.0.1_Windows_preview
+          name: COMPELEC_ONE_Pfarrbuero_KI_V2.0.2_Windows_preview
           path: |
             dist/COMPELEC_ONE_Pfarrbuero_KI.exe
-            dist/COMPELEC_ONE_Pfarrbuero_KI_V2.0.1_Setup.exe
+            dist/COMPELEC_ONE_Pfarrbuero_KI_V2.0.2_Setup.exe
             dist/*SHA256.txt
           if-no-files-found: error
           retention-days: 30
