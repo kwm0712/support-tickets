@@ -27,6 +27,7 @@ INSERT INTO parish_cases(tenant_id,org_unit_id,case_type,subject,created_by) VAL
 
 GRANT USAGE ON SCHEMA public TO pfarrbuero_runtime;
 GRANT SELECT ON parish_tenants,parish_org_units,parish_users TO pfarrbuero_runtime;
+GRANT INSERT ON parish_org_units TO pfarrbuero_runtime;
 GRANT SELECT,INSERT ON parish_cases,parish_audit_events TO pfarrbuero_runtime;
 GRANT USAGE,SELECT ON ALL SEQUENCES IN SCHEMA public TO pfarrbuero_runtime;
 
