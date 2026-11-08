@@ -20,7 +20,6 @@ from typing import Any
 
 import jwt
 import keyring
-from keyring.backends.Windows import WinVaultKeyring
 from jwt import PyJWKClient
 
 
@@ -47,10 +46,11 @@ class OidcAuthClient:
     def __init__(self):
         if os.name != "nt":
             raise RuntimeError("Der sichere OIDC-Token-Speicher ist für Windows vorgesehen.")
+        from keyring.backends.Windows import WinVaultKeyring
         keyring.set_keyring(WinVaultKeyring())
         self.issuer = os.getenv("PFARRBUERO_OIDC_ISSUER", "").rstrip("/")
         self.client_id = os.getenv("PFARRBUERO_OIDC_CLIENT_ID", "").strip()
-        self.scope = os.getenv("PFARRBUERO_OIDC_SCOPE", "openid profile")
+        self.scope = os.getenv("PFARRBUERO_OIDC_SCOPE", "openid profile offline_access")
         self._metadata: dict[str, Any] | None = None
         self._access_token: str | None = None
         self._access_expires_at = 0.0
