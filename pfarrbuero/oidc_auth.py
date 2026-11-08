@@ -38,6 +38,11 @@ def create_pkce_pair() -> tuple[str, str]:
     return verifier, challenge
 
 
+def verify_oauth_state(received: str, expected: str) -> None:
+    if not received or not secrets.compare_digest(received, expected):
+        raise RuntimeError("OIDC state stimmt nicht überein; Anmeldung abgebrochen.")
+
+
 class OidcAuthClient:
     def __init__(self):
         if os.name != "nt":
@@ -159,8 +164,7 @@ class OidcAuthClient:
             raise TimeoutError("OIDC-Anmeldung wurde nicht innerhalb von drei Minuten abgeschlossen.")
         if received.get("error"):
             raise RuntimeError("OIDC-Anmeldung wurde vom Identity Provider abgebrochen.")
-        if not secrets.compare_digest(received.get("state", ""), state):
-            raise RuntimeError("OIDC state stimmt nicht überein; Anmeldung abgebrochen.")
+        verify_oauth_state(received.get("state", ""), state)
         code = received.get("code", "")
         if not code:
             raise RuntimeError("Kein Authorization Code empfangen.")
