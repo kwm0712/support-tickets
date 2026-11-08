@@ -22,9 +22,9 @@ class ApiBoundaryTests(unittest.TestCase):
         self.app = api.create_app()
         self.client = TestClient(self.app)
         self.principal = Principal(
-            user_id="user-from-signed-token",
-            tenant_id="tenant-from-signed-token",
-            org_unit_id="org-from-signed-token",
+            user_id="10000000-0000-0000-0000-000000000101",
+            tenant_id="10000000-0000-0000-0000-000000000001",
+            org_unit_id="10000000-0000-0000-0000-000000000011",
         )
 
     def test_health_is_public_and_does_not_touch_database(self):
