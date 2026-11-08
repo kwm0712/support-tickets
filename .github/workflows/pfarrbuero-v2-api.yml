@@ -1,11 +1,11 @@
-name: Pfarrbüro-KI V2.0.2 Secure API
+name: Pfarrbüro-KI V2.0.3 Tenant Administration
 on:
   push:
     branches:
-      - agent/pfarrbuero-ki-v2.0.2-oidc-pkce
+      - agent/pfarrbuero-ki-v2.0.3-tenant-admin
   pull_request:
     branches:
-      - agent/pfarrbuero-ki-v2.0.2-oidc-pkce
+      - agent/pfarrbuero-ki-v2.0.3-tenant-admin
   workflow_dispatch:
 
 jobs:
@@ -45,8 +45,7 @@ jobs:
       - name: Prepare runtime role and tenant test fixtures
         env:
           PGPASSWORD: pfarrbuero-ci
-        run: |
-          psql -h 127.0.0.1 -U pfarrbuero -d pfarrbuero_test -v ON_ERROR_STOP=1 -f pfarrbuero/tests/test_enterprise_core.sql
+        run: psql -h 127.0.0.1 -U pfarrbuero -d pfarrbuero_test -v ON_ERROR_STOP=1 -f pfarrbuero/tests/test_enterprise_core.sql
       - name: Run API boundary and PostgreSQL integration tests
         env:
           PFARRBUERO_TEST_DATABASE_URL: postgresql://pfarrbuero_runtime:runtime-test-password@127.0.0.1:5432/pfarrbuero_test
@@ -56,20 +55,21 @@ jobs:
           PYTHONPATH: pfarrbuero
         run: python -m unittest discover -s pfarrbuero/tests -p 'test_*.py' -v
       - name: Compile application and API
-        run: python -m py_compile pfarrbuero/app.py pfarrbuero/api_client.py pfarrbuero/api.py pfarrbuero/security.py pfarrbuero/oidc_auth.py pfarrbuero/repository.py
+        run: python -m py_compile pfarrbuero/app.py pfarrbuero/api_client.py pfarrbuero/api.py pfarrbuero/security.py pfarrbuero/oidc_auth.py pfarrbuero/repository.py pfarrbuero/admin_repository.py pfarrbuero/admin_routes.py
       - name: Upload API source bundle
         uses: actions/upload-artifact@v4
         with:
-          name: COMPELEC_ONE_Pfarrbuero_KI_V2.0.2_API_sources
+          name: COMPELEC_ONE_Pfarrbuero_KI_V2.0.3_API_sources
           path: |
             pfarrbuero/api.py
+            pfarrbuero/admin_routes.py
+            pfarrbuero/admin_repository.py
             pfarrbuero/security.py
             pfarrbuero/api_client.py
             pfarrbuero/oidc_auth.py
             pfarrbuero/repository.py
             pfarrbuero/requirements.txt
-            pfarrbuero/tests/test_api.py
-            pfarrbuero/tests/test_oidc_auth.py
-            pfarrbuero/docs/V2.0.2_OIDC_LOGIN.md
+            pfarrbuero/tests/
+            pfarrbuero/docs/V2.0.3_TENANT_ADMIN.md
           if-no-files-found: error
           retention-days: 30
