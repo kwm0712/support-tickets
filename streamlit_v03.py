@@ -9,7 +9,7 @@ from v03_runtime import build_support_service
 
 
 st.set_page_config(
-    page_title="CCS Agent Support V0.3",
+    page_title="COMPELEC ONE Business",
     page_icon="🤖",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -46,7 +46,7 @@ PRIVACY_LABELS = {
 
 
 def login_view() -> None:
-    st.title("CCS Agent Support V0.3")
+    st.title("COMPELEC ONE Business")
     st.caption("PostgreSQL · pgvector · Tenant/RBAC Architecture")
     license_status = get_license_status()
     if not license_status.valid:
@@ -66,13 +66,13 @@ def login_view() -> None:
                 "support / Support-Start!\n"
                 "demo / Demo-Start!"
             )
-            st.caption("Lokale Identität bleibt in V0.3 als SSO-Kompatibilitätspfad bestehen.")
+            st.caption("Lokale Anmeldung ist derzeit der Entwicklungs- und Kompatibilitätspfad.")
 
     if submitted:
         user = authenticate(username, password)
         if user:
             st.session_state.user = user
-            record_audit(user["username"], "LOGIN", "session", details="V0.3 client")
+            record_audit(user["username"], "LOGIN", "session", details="COMPELEC ONE Business client")
             st.rerun()
         st.error("Anmeldung fehlgeschlagen.")
 
@@ -91,12 +91,12 @@ user = st.session_state.user
 try:
     service = build_support_service(user)
 except Exception as exc:
-    st.error(f"V0.3 PostgreSQL-Laufzeit konnte nicht initialisiert werden: {exc}")
+    st.error(f"PostgreSQL-Laufzeit konnte nicht initialisiert werden: {exc}")
     st.stop()
 
 with st.sidebar:
-    st.markdown("## CCS Agent Support")
-    st.caption("V0.3.0-dev · PostgreSQL/pgvector")
+    st.markdown("## COMPELEC ONE Business")
+    st.caption("Support & Knowledge · PostgreSQL/pgvector")
     st.write(f"**{user['display_name']}**")
     st.caption(f"Rolle: {user['role']}")
     st.caption(f"Datenschutzobergrenze: {PRIVACY_LABELS[service.privacy_ceiling]}")
@@ -109,11 +109,11 @@ with st.sidebar:
     st.success("PostgreSQL aktiv")
     st.caption("Embedding: ccs-local-hash-v1 · lokal")
     if st.button("Abmelden", use_container_width=True):
-        record_audit(user["username"], "LOGOUT", "session", details="V0.3 client")
+        record_audit(user["username"], "LOGOUT", "session", details="COMPELEC ONE Business client")
         st.session_state.clear()
         st.rerun()
 
-st.title("CCS Agent Support V0.3")
+st.title("COMPELEC ONE Business")
 st.caption("Service-/Repository-Architektur mit tenant-sicherem Hybrid Retrieval")
 
 try:
@@ -132,7 +132,7 @@ try:
         else:
             st.info("Noch keine Tickets im aktiven Mandanten.")
         st.info(
-            "V0.3 erzwingt Rollen-, Datenschutz- und Mandantengrenzen in der "
+            "Die Anwendung erzwingt Rollen-, Datenschutz- und Mandantengrenzen in der "
             "Service-/Repository-Schicht. Streamlit ist nur Präsentationsschicht."
         )
 
