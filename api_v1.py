@@ -47,6 +47,7 @@ def _cached_oidc_provider(
     tenant_claim: str,
     username_claim: str,
     role_map_items: tuple[tuple[str, str], ...],
+    tenant_map_items: tuple[tuple[str, str], ...],
 ) -> OIDCIdentityProvider:
     return OIDCIdentityProvider(
         issuer=issuer,
@@ -56,6 +57,7 @@ def _cached_oidc_provider(
         tenant_claim=tenant_claim,
         username_claim=username_claim,
         role_map=dict(role_map_items),
+        tenant_map=dict(tenant_map_items),
     )
 
 
@@ -69,6 +71,7 @@ def build_identity_provider(cfg: ProductionConfig):
             cfg.oidc_tenant_claim,
             cfg.oidc_username_claim,
             tuple(sorted(cfg.oidc_role_map.items())),
+            tuple(sorted(cfg.oidc_tenant_map.items())),
         )
     return TrustedHeaderIdentityProvider(default_tenant_id=cfg.tenant_id)
 
