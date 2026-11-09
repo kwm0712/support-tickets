@@ -45,7 +45,7 @@ class PostgresRuntimeRoleGuardTests(unittest.TestCase):
             "rolbypassrls": False,
         })
         with patch.object(self.repository, "_connect", return_value=connection):
-            self.assertEqual(self.repository.assert_safe_runtime_role(), "compelec_app")
+            self.assertEqual(self.repository.ensure_safe_runtime_role(), "compelec_app")
 
     def test_rejects_superuser(self):
         connection = FakeConnection({
@@ -55,7 +55,7 @@ class PostgresRuntimeRoleGuardTests(unittest.TestCase):
         })
         with patch.object(self.repository, "_connect", return_value=connection):
             with self.assertRaisesRegex(RuntimeError, "SUPERUSER und BYPASSRLS"):
-                self.repository.assert_safe_runtime_role()
+                self.repository.ensure_safe_runtime_role()
 
     def test_rejects_bypassrls_role(self):
         connection = FakeConnection({
@@ -65,13 +65,13 @@ class PostgresRuntimeRoleGuardTests(unittest.TestCase):
         })
         with patch.object(self.repository, "_connect", return_value=connection):
             with self.assertRaisesRegex(RuntimeError, "SUPERUSER und BYPASSRLS"):
-                self.repository.assert_safe_runtime_role()
+                self.repository.ensure_safe_runtime_role()
 
     def test_rejects_missing_role_metadata(self):
         connection = FakeConnection(None)
         with patch.object(self.repository, "_connect", return_value=connection):
             with self.assertRaisesRegex(RuntimeError, "konnte nicht ermittelt werden"):
-                self.repository.assert_safe_runtime_role()
+                self.repository.ensure_safe_runtime_role()
 
 
 if __name__ == "__main__":
