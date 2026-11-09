@@ -93,10 +93,10 @@ def get_service(request: Request, cfg: ProductionConfig = Depends(config)) -> Su
 @app.on_event("startup")
 def startup() -> None:
     cfg = load_production_config()
-    apply_postgres_migrations(cfg.database_url)
     if cfg.is_production:
         runtime_repository = PostgresRepository(cfg.database_url, TenantContext(cfg.tenant_id))
         runtime_repository.assert_safe_runtime_role()
+    apply_postgres_migrations(cfg.database_url)
 
 
 @app.get("/health/live")
