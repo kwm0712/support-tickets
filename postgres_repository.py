@@ -56,19 +56,6 @@ class PostgresRepository:
         rank = PRIVACY_LEVELS.index(requested)
         return PRIVACY_LEVELS[: rank + 1]
 
-    @staticmethod
-    def _vector_literal(embedding: EmbeddingVector) -> str:
-        if len(embedding.values) != embedding.dimensions:
-            raise ValueError("Embedding-Vektor hat eine ungültige Länge.")
-        return "[" + ",".join(f"{value:.12g}" for value in embedding.values) + "]"
-
-    @staticmethod
-    def _allowed_privacy_levels(requested: str) -> tuple[str, ...]:
-        if requested not in PRIVACY_LEVELS:
-            raise ValueError(f"Ungültige Datenschutzstufe: {requested}")
-        rank = PRIVACY_LEVELS.index(requested)
-        return PRIVACY_LEVELS[: rank + 1]
-
     def healthcheck(self) -> bool:
         with self._connect() as connection:
             row = connection.execute("SELECT 1 AS ok").fetchone()
