@@ -48,7 +48,7 @@ class OIDCIdentityProviderTests(unittest.TestCase):
             )
         self.assertEqual(user.username, "user@example.test")
         self.assertEqual(user.role, "agent")
-        self.assertEqual(user.tenant_id, "tenant-abc")
+        self.assertEqual(user.tenant_id, "compelec")
         decode.assert_called_once()
         self.assertEqual(decode.call_args.kwargs["algorithms"], ["RS256"])
         self.assertEqual(decode.call_args.kwargs["audience"], "compelec-one-business")
