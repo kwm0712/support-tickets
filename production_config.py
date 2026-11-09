@@ -43,6 +43,7 @@ def load_production_config() -> ProductionConfig:
     identity_mode = os.getenv("CCS_IDENTITY_MODE", "trusted-header").strip().lower()
     trusted_header_ack = os.getenv("CCS_TRUSTED_HEADER_MODE_ACK", "").strip()
     environment = os.getenv("CCS_ENVIRONMENT", "development").strip().lower()
+    license_mode = os.getenv("CCS_LICENSE_MODE", "demo").strip().lower()
 
     oidc_issuer = os.getenv("CCS_OIDC_ISSUER", "").strip()
     oidc_audience = os.getenv("CCS_OIDC_AUDIENCE", "").strip()
@@ -66,6 +67,8 @@ def load_production_config() -> ProductionConfig:
         errors.append("CCS_ENVIRONMENT ist ungültig")
     if identity_mode not in {"trusted-header", "oidc"}:
         errors.append("CCS_IDENTITY_MODE muss trusted-header oder oidc sein")
+    if environment == "production" and license_mode != "licensed":
+        errors.append("CCS_LICENSE_MODE=licensed ist für den Produktivbetrieb verpflichtend")
 
     oidc_role_map: dict[str, str] = {}
     oidc_tenant_map: dict[str, str] = {}
