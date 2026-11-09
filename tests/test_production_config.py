@@ -15,6 +15,7 @@ class ProductionConfigTests(unittest.TestCase):
             "CCS_TENANT_NAME": "Compelec",
             "CCS_EMBEDDING_PROVIDER": "openai-compatible",
             "CCS_IDENTITY_MODE": "trusted-header",
+            "CCS_TRUSTED_HEADER_MODE_ACK": "I_TRUST_MY_AUTHENTICATING_PROXY",
             "CCS_ENVIRONMENT": "production",
         }
         base.update(overrides)
@@ -25,6 +26,11 @@ class ProductionConfigTests(unittest.TestCase):
             cfg = load_production_config()
         self.assertTrue(cfg.is_production)
         self.assertEqual(cfg.tenant_id, "compelec")
+
+    def test_trusted_header_production_requires_explicit_proxy_acknowledgement(self):
+        with self._env(CCS_TRUSTED_HEADER_MODE_ACK=""):
+            with self.assertRaises(ProductionConfigError):
+                load_production_config()
 
     def test_local_hash_is_rejected_in_production(self):
         with self._env(CCS_EMBEDDING_PROVIDER="local-hash"):
