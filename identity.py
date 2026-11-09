@@ -44,6 +44,7 @@ class TrustedHeaderIdentityProvider:
         role_header: str = "x-compelec-role",
         tenant_header: str = "x-compelec-tenant",
         require_tenant_header: bool = False,
+        tenant_map: Mapping[str, str] | None = None,
     ) -> None:
         if not default_tenant_id.strip():
             raise ValueError("default_tenant_id darf nicht leer sein.")
@@ -52,6 +53,9 @@ class TrustedHeaderIdentityProvider:
         self.role_header = role_header.lower()
         self.tenant_header = tenant_header.lower()
         self.require_tenant_header = require_tenant_header
+        self.tenant_map = dict(tenant_map or {})
+        if self.require_tenant_header and not self.tenant_map:
+            raise ValueError("Produktives Trusted-Header-Mandantenmapping darf nicht leer sein.")
 
     def authenticate(self, request: IdentityRequest) -> UserContext:
         headers = {str(k).lower(): str(v).strip() for k, v in request.headers.items()}
@@ -60,7 +64,12 @@ class TrustedHeaderIdentityProvider:
         supplied_tenant_id = headers.get(self.tenant_header, "")
         if self.require_tenant_header and not supplied_tenant_id:
             raise AuthenticationError("Mandantenkennung aus dem vertrauenswürdigen Proxy fehlt.")
-        tenant_id = supplied_tenant_id or self.default_tenant_id
+        if self.require_tenant_header:
+            tenant_id = self.tenant_map.get(supplied_tenant_id, "")
+            if not tenant_id:
+                raise AuthenticationError("Mandant aus dem vertrauenswürdigen Proxy ist nicht freigegeben.")
+        else:
+            tenant_id = self.tenant_map.get(supplied_tenant_id, supplied_tenant_id) or self.default_tenant_id
 
         if not username:
             raise AuthenticationError("Authentifizierter Benutzer fehlt.")
