@@ -87,10 +87,11 @@ class OIDCIdentityProvider:
         tenant_claim: str = "tid",
         username_claim: str = "preferred_username",
         role_map: Mapping[str, str] | None = None,
+        tenant_map: Mapping[str, str] | None = None,
         leeway_seconds: int = 30,
         jwks_client: object | None = None,
     ) -> None:
-        self.issuer = issuer.strip().rstrip("/")
+        self.issuer = issuer.strip()
         self.audience = audience.strip()
         self.jwks_url = jwks_url.strip()
         if not self.issuer.startswith("https://"):
@@ -117,7 +118,13 @@ class OIDCIdentityProvider:
         self.role_claim = role_claim
         self.tenant_claim = tenant_claim
         self.username_claim = username_claim
+        normalized_tenant_map = dict(tenant_map or {})
+        if not normalized_tenant_map:
+            raise ValueError("OIDC-Mandantenmapping darf nicht leer sein.")
+        if any(not external.strip() or not internal.strip() for external, internal in normalized_tenant_map.items()):
+            raise ValueError("OIDC-Mandantenmapping enthält leere Kennungen.")
         self.role_map = normalized_map
+        self.tenant_map = normalized_tenant_map
         self.leeway_seconds = leeway_seconds
         self._jwks_client = jwks_client or jwt.PyJWKClient(
             self.jwks_url,
@@ -153,11 +160,14 @@ class OIDCIdentityProvider:
 
         subject = str(claims.get("sub", "")).strip()
         username = str(claims.get(self.username_claim) or subject).strip()
-        tenant_id = str(claims.get(self.tenant_claim, "")).strip()
+        external_tenant_id = str(claims.get(self.tenant_claim, "")).strip()
         if not subject or not username:
             raise AuthenticationError("OIDC-Benutzerkennung fehlt.")
-        if not tenant_id:
+        if not external_tenant_id:
             raise AuthenticationError("OIDC-Mandantenkennung fehlt.")
+        tenant_id = self.tenant_map.get(external_tenant_id, "")
+        if not tenant_id:
+            raise AuthenticationError("OIDC-Mandant ist für COMPELEC nicht freigegeben.")
 
         raw_roles = claims.get(self.role_claim)
         role_values = [raw_roles] if isinstance(raw_roles, str) else raw_roles
