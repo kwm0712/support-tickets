@@ -83,8 +83,7 @@ class V03MigrationTests(unittest.TestCase):
         role_password = uuid.uuid4().hex + "Aa9!"
         with self.psycopg.connect(self.database_url) as admin:
             admin.execute(
-                "CREATE ROLE " + role_name + " LOGIN PASSWORD %s",
-                (role_password,),
+                f"CREATE ROLE {role_name} LOGIN PASSWORD '{role_password}'"
             )
             admin.execute(
                 f"GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO {role_name}"
