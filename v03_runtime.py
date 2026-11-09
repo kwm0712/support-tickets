@@ -36,6 +36,6 @@ def build_support_service(user: dict, *, migrate: bool = True) -> SupportService
         context,
         embedding_provider=embedding_provider,
     )
-    tenant_name = os.getenv("CCS_TENANT_NAME", "").strip()
-    service.ensure_tenant(tenant_name or tenant_id)
+    tenant_name = cfg.tenant_name.strip() or tenant_id
+    service.ensure_tenant(tenant_name)
     return service
