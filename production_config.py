@@ -27,6 +27,7 @@ class ProductionConfig:
     oidc_tenant_claim: str = "tid"
     oidc_username_claim: str = "preferred_username"
     oidc_role_map: dict[str, str] = field(default_factory=dict)
+    oidc_tenant_map: dict[str, str] = field(default_factory=dict)
 
     @property
     def is_production(self) -> bool:
@@ -48,6 +49,7 @@ def load_production_config() -> ProductionConfig:
     oidc_tenant_claim = os.getenv("CCS_OIDC_TENANT_CLAIM", "tid").strip()
     oidc_username_claim = os.getenv("CCS_OIDC_USERNAME_CLAIM", "preferred_username").strip()
     role_map_raw = os.getenv("CCS_OIDC_ROLE_MAP", "").strip()
+    tenant_map_raw = os.getenv("CCS_OIDC_TENANT_MAP", "").strip()
 
     errors: list[str] = []
     parsed = urlparse(database_url) if database_url else None
@@ -63,6 +65,7 @@ def load_production_config() -> ProductionConfig:
         errors.append("CCS_IDENTITY_MODE muss trusted-header oder oidc sein")
 
     oidc_role_map: dict[str, str] = {}
+    oidc_tenant_map: dict[str, str] = {}
     if role_map_raw:
         try:
             parsed_role_map = json.loads(role_map_raw)
@@ -73,6 +76,16 @@ def load_production_config() -> ProductionConfig:
             oidc_role_map = parsed_role_map
         except (json.JSONDecodeError, ValueError) as exc:
             errors.append(f"CCS_OIDC_ROLE_MAP ist ungültig: {exc}")
+    if tenant_map_raw:
+        try:
+            parsed_tenant_map = json.loads(tenant_map_raw)
+            if not isinstance(parsed_tenant_map, dict):
+                raise ValueError("Mapping muss ein JSON-Objekt sein.")
+            if not all(isinstance(key, str) and isinstance(value, str) for key, value in parsed_tenant_map.items()):
+                raise ValueError("Mapping-Schlüssel und -Werte müssen Zeichenketten sein.")
+            oidc_tenant_map = parsed_tenant_map
+        except (json.JSONDecodeError, ValueError) as exc:
+            errors.append(f"CCS_OIDC_TENANT_MAP ist ungültig: {exc}")
 
     if identity_mode == "oidc":
         if not oidc_issuer.startswith("https://"):
@@ -85,6 +98,10 @@ def load_production_config() -> ProductionConfig:
             errors.append("OIDC-Rollen- und Mandanten-Claim müssen gesetzt sein")
         if environment == "production" and not oidc_role_map:
             errors.append("CCS_OIDC_ROLE_MAP muss in Produktion explizit gesetzt sein")
+        if not oidc_tenant_map:
+            errors.append("CCS_OIDC_TENANT_MAP muss für OIDC explizit gesetzt sein")
+        if any(not key.strip() or not value.strip() for key, value in oidc_tenant_map.items()):
+            errors.append("CCS_OIDC_TENANT_MAP enthält leere Kennungen")
         if any(target not in ROLE_PERMISSIONS for target in oidc_role_map.values()):
             errors.append("CCS_OIDC_ROLE_MAP enthält eine unbekannte COMPELEC-Rolle")
 
@@ -114,4 +131,5 @@ def load_production_config() -> ProductionConfig:
         oidc_tenant_claim=oidc_tenant_claim,
         oidc_username_claim=oidc_username_claim,
         oidc_role_map=oidc_role_map,
+        oidc_tenant_map=oidc_tenant_map,
     )
