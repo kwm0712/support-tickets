@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import os
-
 from architecture import TenantContext, UserContext
 from embedding import build_embedding_provider_from_env
 from postgres_migrations import apply_postgres_migrations
