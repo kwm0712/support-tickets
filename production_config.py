@@ -42,7 +42,7 @@ def load_production_config() -> ProductionConfig:
     identity_mode = os.getenv("CCS_IDENTITY_MODE", "trusted-header").strip().lower()
     environment = os.getenv("CCS_ENVIRONMENT", "development").strip().lower()
 
-    oidc_issuer = os.getenv("CCS_OIDC_ISSUER", "").strip().rstrip("/")
+    oidc_issuer = os.getenv("CCS_OIDC_ISSUER", "").strip()
     oidc_audience = os.getenv("CCS_OIDC_AUDIENCE", "").strip()
     oidc_jwks_url = os.getenv("CCS_OIDC_JWKS_URL", "").strip()
     oidc_role_claim = os.getenv("CCS_OIDC_ROLE_CLAIM", "roles").strip()
