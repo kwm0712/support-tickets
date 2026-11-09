@@ -93,6 +93,21 @@ jobs:
       - name: Build Windows installer and portable package
         shell: pwsh
         run: ./packaging/windows/build_windows.ps1
+      - name: Smoke-test Windows installation and uninstallation
+        shell: pwsh
+        run: |
+          $Setup = Get-ChildItem "release/windows/*Setup*.exe" | Select-Object -First 1
+          if (-not $Setup) { throw "Windows-Setup-EXE fehlt." }
+          $InstallDir = Join-Path $env:RUNNER_TEMP "COMPELEC-ONE-Business-Smoke"
+          & $Setup.FullName /VERYSILENT /SUPPRESSMSGBOXES /NORESTART "/DIR=$InstallDir"
+          if ($LASTEXITCODE -ne 0) { throw "Windows-Installation fehlgeschlagen: $LASTEXITCODE" }
+          $InstalledExe = Join-Path $InstallDir "COMPELEC-ONE-Business.exe"
+          if (-not (Test-Path $InstalledExe)) { throw "Installierte Programmdatei fehlt." }
+          $Uninstaller = Join-Path $InstallDir "unins000.exe"
+          if (-not (Test-Path $Uninstaller)) { throw "Uninstaller wurde nicht installiert." }
+          & $Uninstaller /VERYSILENT /SUPPRESSMSGBOXES /NORESTART
+          if ($LASTEXITCODE -ne 0) { throw "Deinstallation fehlgeschlagen: $LASTEXITCODE" }
+          if (Test-Path $InstalledExe) { throw "Programmdatei wurde bei Deinstallation nicht entfernt." }
       - name: Upload Windows test release
         uses: actions/upload-artifact@v4
         with:
