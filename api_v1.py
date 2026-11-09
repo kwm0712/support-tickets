@@ -73,7 +73,7 @@ def build_identity_provider(cfg: ProductionConfig):
             tuple(sorted(cfg.oidc_role_map.items())),
             tuple(sorted(cfg.oidc_tenant_map.items())),
         )
-    return TrustedHeaderIdentityProvider(default_tenant_id=cfg.tenant_id)
+    return TrustedHeaderIdentityProvider(default_tenant_id=cfg.tenant_id, require_tenant_header=cfg.is_production)
 
 
 def get_service(request: Request, cfg: ProductionConfig = Depends(config)) -> SupportService:
