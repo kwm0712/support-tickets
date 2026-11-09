@@ -4,7 +4,7 @@
 
 Die REST-API kann OIDC-Bearer-Tokens validieren. Der Provider prüft RS256-Signatur über den konfigurierten HTTPS-JWKS-Endpunkt, Issuer, Audience, Ablaufzeit, Ausstellungszeit und Subject. Rollen und externe Mandanten werden ausschließlich über explizite Allowlist-Mappings übernommen.
 
-**Wichtig:** Der Codepfad ist noch keine produktive Entra-ID-Anbindung. Dafür müssen App-Registrierung, App-Rollen, Testbenutzer und reale Tokens in der Zielumgebung eingerichtet und abgenommen werden. Der aktuelle OIDC-Provider ist zunächst in der REST-API verdrahtet. Die Streamlit-Oberfläche verwendet weiterhin lokale Anmeldung; ein durchgängiger OIDC-/Reverse-Proxy-Login für die Oberfläche ist ein offenes V2.0-Release-Gate. Die Anwendung enthält derzeit keinen vollständigen interaktiven Login-Client; der API-aufrufende Client muss ein gültiges Bearer-Token beschaffen.
+**Wichtig:** Der Codepfad ist noch keine produktive Entra-ID-Anbindung. Dafür müssen App-Registrierung, App-Rollen, Testbenutzer und reale Tokens in der Zielumgebung eingerichtet und abgenommen werden. Der OIDC-/Trusted-Proxy-Provider wird sowohl von der REST-API als auch von der Streamlit-Oberfläche verwendet. Im Produktionsmodus ist die lokale Kennwortanmeldung deaktiviert. Der aufrufende Browser muss über den vorgeschalteten Unternehmens-Identity-Provider authentifiziert werden; der Proxy muss entweder den Bearer-Token weiterreichen oder die vereinbarten vertrauenswürdigen Identitätsheader setzen. Die Anwendung enthält keinen eigenen interaktiven OIDC-Login-Client.
 
 ## 1. Entra-App-Registrierung
 
@@ -46,7 +46,7 @@ CCS_OIDC_ROLE_MAP={"Compelec.Admin":"admin","Compelec.Support":"agent","Compelec
 CCS_OIDC_TENANT_MAP={"<TENANT-GUID-AUS-CLAIM-tid>":"compelec"}
 ```
 
-Das Tenant-Mapping ist eine Sicherheitsgrenze. Ein gültig signiertes Token eines nicht zugeordneten IdP-Mandanten wird abgewiesen. Die externe Tenant-GUID wird nicht ungeprüft als interner Datenbank-Mandant verwendet.
+Das Tenant-Mapping ist eine Sicherheitsgrenze. Ein gültig signiertes Token eines nicht zugeordneten IdP-Mandanten wird abgewiesen. Die externe Tenant-GUID wird nicht ungeprüft als interner Datenbank-Mandant verwendet. Beim Trusted-Header-Modus ist der Header `x-compelec-tenant` in Produktion zwingend; es gibt keinen Rückfall auf den Standardmandanten.
 
 Für weitere Organisationen muss jede externe Tenant-GUID ausdrücklich auf einen internen Mandantenschlüssel abgebildet und organisatorisch freigegeben werden.
 
@@ -68,7 +68,7 @@ Keine Client-Secrets, Zertifikate oder privaten Schlüssel in `.env.example`, Qu
 
 ## 5. Abnahmetests mit echten Tokens
 
-- [ ] Token von der vorgesehenen Entra-App beziehen.
+- [ ] Token von der vorgesehenen Entra-App beziehen und vom Reverse Proxy an die Anwendung weiterreichen (oder verifizierte Identitätsheader setzen).
 - [ ] `iss` entspricht exakt `CCS_OIDC_ISSUER`.
 - [ ] `aud` entspricht exakt `CCS_OIDC_AUDIENCE`.
 - [ ] Signatur wird über den HTTPS-JWKS-Endpunkt verifiziert.
@@ -76,6 +76,7 @@ Keine Client-Secrets, Zertifikate oder privaten Schlüssel in `.env.example`, Qu
 - [ ] Falsche Signatur, falscher Issuer oder falsche Audience werden abgewiesen.
 - [ ] Fehlende oder unbekannte App-Rolle wird abgewiesen.
 - [ ] Nicht zugeordnete `tid` wird abgewiesen.
+- [ ] Trusted-Header-Modus: fehlender `x-compelec-tenant` wird abgewiesen.
 - [ ] Jede Rolle erhält ausschließlich die vorgesehenen COMPELEC-Berechtigungen.
 - [ ] Token und sensible Claims erscheinen nicht in Logs.
 
