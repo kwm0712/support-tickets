@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import unittest
+from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from unittest.mock import patch
 
 import jwt
+from cryptography.hazmat.primitives.asymmetric import rsa
 
 from identity import AuthenticationError, IdentityRequest, OIDCIdentityProvider
 
@@ -22,12 +24,15 @@ class FakeJwksClient:
 
 class OIDCIdentityProviderTests(unittest.TestCase):
     def setUp(self):
+        self.private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+        self.public_key = self.private_key.public_key()
+        now = datetime.now(timezone.utc)
         self.claims = {
             "iss": "https://login.example.test/tenant/v2.0",
             "aud": "compelec-one-business",
             "sub": "subject-123",
-            "iat": 1_800_000_000,
-            "exp": 1_800_003_600,
+            "iat": int(now.timestamp()) - 10,
+            "exp": int((now + timedelta(hours=1)).timestamp()),
             "preferred_username": "user@example.test",
             "tid": "tenant-abc",
             "roles": ["Business.Support.Agent"],
@@ -38,21 +43,19 @@ class OIDCIdentityProviderTests(unittest.TestCase):
             jwks_url="https://login.example.test/keys",
             role_map={"Business.Support.Admin": "admin", "Business.Support.Agent": "agent"},
             tenant_map={"tenant-abc": "compelec"},
-            jwks_client=FakeJwksClient(),
+            jwks_client=FakeJwksClient(self.public_key),
         )
 
-    def test_valid_bearer_token_maps_identity_and_tenant(self):
-        with patch("identity.jwt.decode", return_value=self.claims) as decode:
-            user = self.provider.authenticate(
-                IdentityRequest(headers={"Authorization": "Bearer signed-token"})
-            )
+    def _token(self, claims=None, key=None):
+        return jwt.encode(claims or self.claims, key or self.private_key, algorithm="RS256")
+
+    def test_valid_signed_rs256_token_maps_identity_and_tenant(self):
+        user = self.provider.authenticate(
+            IdentityRequest(headers={"Authorization": f"Bearer {self._token()}"})
+        )
         self.assertEqual(user.username, "user@example.test")
         self.assertEqual(user.role, "agent")
         self.assertEqual(user.tenant_id, "compelec")
-        decode.assert_called_once()
-        self.assertEqual(decode.call_args.kwargs["algorithms"], ["RS256"])
-        self.assertEqual(decode.call_args.kwargs["audience"], "compelec-one-business")
-        self.assertEqual(decode.call_args.kwargs["issuer"], "https://login.example.test/tenant/v2.0")
 
     def test_missing_bearer_token_is_rejected(self):
         with self.assertRaises(AuthenticationError):
@@ -82,10 +85,21 @@ class OIDCIdentityProviderTests(unittest.TestCase):
             with self.assertRaises(AuthenticationError):
                 self.provider.authenticate(IdentityRequest(headers={"Authorization": "Bearer token"}))
 
-    def test_invalid_signature_or_claims_are_rejected(self):
-        with patch("identity.jwt.decode", side_effect=jwt.InvalidTokenError("invalid")):
-            with self.assertRaises(AuthenticationError):
-                self.provider.authenticate(IdentityRequest(headers={"Authorization": "Bearer token"}))
+    def test_invalid_signature_is_rejected(self):
+        other_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+        token = self._token(key=other_key)
+        with self.assertRaises(AuthenticationError):
+            self.provider.authenticate(IdentityRequest(headers={"Authorization": f"Bearer {token}"}))
+
+    def test_expired_token_is_rejected(self):
+        expired_claims = {
+            **self.claims,
+            "iat": int((datetime.now(timezone.utc) - timedelta(hours=2)).timestamp()),
+            "exp": int((datetime.now(timezone.utc) - timedelta(hours=1)).timestamp()),
+        }
+        token = self._token(claims=expired_claims)
+        with self.assertRaises(AuthenticationError):
+            self.provider.authenticate(IdentityRequest(headers={"Authorization": f"Bearer {token}"}))
 
     def test_jwks_failure_fails_closed(self):
         provider = OIDCIdentityProvider(
