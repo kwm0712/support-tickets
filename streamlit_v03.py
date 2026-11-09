@@ -61,7 +61,7 @@ def _production_identity_provider():
             role_map=cfg.oidc_role_map,
             tenant_map=cfg.oidc_tenant_map,
         )
-    return TrustedHeaderIdentityProvider(default_tenant_id=cfg.tenant_id, require_tenant_header=cfg.is_production)
+    return TrustedHeaderIdentityProvider(default_tenant_id=cfg.tenant_id, require_tenant_header=cfg.is_production, tenant_map=cfg.trusted_tenant_map)
 
 
 def _authenticate_production_ui() -> dict[str, str]:
