@@ -152,8 +152,8 @@ class V03MigrationTests(unittest.TestCase):
         repository = PostgresRepository(self.database_url, TenantContext(tenant_id))
         with repository._connect() as connection:
             configured_tenant = connection.execute(
-                "SELECT current_setting('app.tenant_id', true)"
-            ).fetchone()[0]
+                "SELECT current_setting('app.tenant_id', true) AS tenant_id"
+            ).fetchone()["tenant_id"]
             self.assertEqual(configured_tenant, tenant_id)
 
     def test_v02_sqlite_core_data_can_be_migrated(self) -> None:
