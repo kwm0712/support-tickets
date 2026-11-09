@@ -6,18 +6,22 @@ from architecture import TenantContext, UserContext
 from embedding import build_embedding_provider_from_env
 from postgres_migrations import apply_postgres_migrations
 from postgres_repository import PostgresRepository
+from production_config import load_production_config
 from support_service import SupportService
 
 
 def build_support_service(user: dict, *, migrate: bool = True) -> SupportService:
-    database_url = os.getenv("CCS_DATABASE_URL", "").strip()
-    if not database_url:
-        raise RuntimeError(
-            "CCS_DATABASE_URL ist für die V0.3-PostgreSQL-Laufzeit verpflichtend."
-        )
+    cfg = load_production_config()
+    database_url = cfg.database_url
+    tenant_id = str(user.get("tenant_id") or cfg.tenant_id).strip()
+    if not tenant_id:
+        raise RuntimeError("Authentifizierter Mandant fehlt für die PostgreSQL-Laufzeit.")
+    if cfg.is_production and not user.get("tenant_id"):
+        raise RuntimeError("Produktiver Benutzerkontext muss eine verifizierte Mandantenkennung enthalten.")
 
-    tenant_id = os.getenv("CCS_TENANT_ID", "compelec").strip() or "compelec"
-    tenant_name = os.getenv("CCS_TENANT_NAME", "Compelec Computersysteme GmbH").strip()
+    repository = PostgresRepository(database_url, TenantContext(tenant_id))
+    if cfg.is_production:
+        repository.assert_safe_runtime_role()
     if migrate:
         apply_postgres_migrations(database_url)
 
@@ -26,12 +30,12 @@ def build_support_service(user: dict, *, migrate: bool = True) -> SupportService
         role=user["role"],
         tenant_id=tenant_id,
     )
-    repository = PostgresRepository(database_url, TenantContext(tenant_id))
     embedding_provider = build_embedding_provider_from_env()
     service = SupportService(
         repository,
         context,
         embedding_provider=embedding_provider,
     )
+    tenant_name = os.getenv("CCS_TENANT_NAME", "").strip()
     service.ensure_tenant(tenant_name or tenant_id)
     return service
