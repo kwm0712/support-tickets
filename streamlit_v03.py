@@ -5,6 +5,8 @@ import streamlit as st
 
 from architecture import AuthorizationError
 from ccs_core import authenticate, get_license_status, initialize_database, record_audit
+from identity import AuthenticationError, IdentityRequest, OIDCIdentityProvider, TrustedHeaderIdentityProvider
+from production_config import load_production_config
 from v03_runtime import build_support_service
 
 
@@ -45,6 +47,34 @@ PRIVACY_LABELS = {
 }
 
 
+@st.cache_resource
+def _production_identity_provider():
+    cfg = load_production_config()
+    if cfg.identity_mode == "oidc":
+        return OIDCIdentityProvider(
+            issuer=cfg.oidc_issuer,
+            audience=cfg.oidc_audience,
+            jwks_url=cfg.oidc_jwks_url,
+            role_claim=cfg.oidc_role_claim,
+            tenant_claim=cfg.oidc_tenant_claim,
+            username_claim=cfg.oidc_username_claim,
+            role_map=cfg.oidc_role_map,
+            tenant_map=cfg.oidc_tenant_map,
+        )
+    return TrustedHeaderIdentityProvider(default_tenant_id=cfg.tenant_id)
+
+
+def _authenticate_production_ui() -> dict[str, str]:
+    provider = _production_identity_provider()
+    identity = provider.authenticate(IdentityRequest(headers=st.context.headers))
+    return {
+        "username": identity.username,
+        "display_name": identity.username,
+        "role": identity.role,
+        "tenant_id": identity.tenant_id,
+    }
+
+
 def login_view() -> None:
     st.title("COMPELEC ONE Business")
     st.caption("PostgreSQL · pgvector · Tenant/RBAC Architecture")
@@ -83,9 +113,32 @@ except RuntimeError as exc:
     st.error(f"Sicherheits- oder Konfigurationsfehler: {exc}")
     st.stop()
 
-if "user" not in st.session_state:
-    login_view()
+try:
+    production_config = load_production_config()
+except Exception as exc:
+    st.error(f"Produktionskonfiguration konnte nicht geladen werden: {exc}")
     st.stop()
+
+if production_config.is_production:
+    try:
+        authenticated_user = _authenticate_production_ui()
+        previous_user = st.session_state.get("user")
+        if previous_user != authenticated_user:
+            record_audit(
+                authenticated_user["username"],
+                "LOGIN",
+                "session",
+                details=f"COMPELEC ONE Business {production_config.identity_mode}",
+            )
+        st.session_state.user = authenticated_user
+    except AuthenticationError:
+        st.session_state.pop("user", None)
+        st.error("Anmeldung über den Unternehmens-Identity-Provider fehlgeschlagen. Bitte melden Sie sich über das freigegebene Unternehmensportal an.")
+        st.stop()
+else:
+    if "user" not in st.session_state:
+        login_view()
+        st.stop()
 
 user = st.session_state.user
 try:
