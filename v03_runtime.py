@@ -19,7 +19,7 @@ def build_support_service(user: dict, *, migrate: bool = True) -> SupportService
 
     repository = PostgresRepository(database_url, TenantContext(tenant_id))
     if cfg.is_production:
-        repository.assert_safe_runtime_role()
+        repository.ensure_safe_runtime_role()
     if migrate:
         apply_postgres_migrations(database_url)
 
