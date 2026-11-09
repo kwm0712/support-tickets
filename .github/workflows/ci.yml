@@ -18,6 +18,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: compelec-one-business-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -45,6 +49,8 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
+      - name: Install PostgreSQL client tools
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
       - name: Install dependencies
         run: python -m pip install --upgrade pip && pip install -r requirements.txt
       - name: Compile Python sources
@@ -68,5 +74,47 @@ jobs:
           path: |
             COMPELEC-ONE-Business-*-source.zip
             SHA256SUMS-source.txt
+          if-no-files-found: error
+          retention-days: 30
+
+  windows-build:
+    runs-on: windows-latest
+    needs: test
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Install Inno Setup 6
+        shell: pwsh
+        run: choco install innosetup --yes --no-progress
+      - name: Build Windows installer and portable package
+        shell: pwsh
+        run: ./packaging/windows/build_windows.ps1
+      - name: Smoke-test Windows installation and uninstallation
+        shell: pwsh
+        run: |
+          $Setup = Get-ChildItem "release/windows/*Setup*.exe" | Select-Object -First 1
+          if (-not $Setup) { throw "Windows-Setup-EXE fehlt." }
+          $InstallDir = Join-Path $env:RUNNER_TEMP "COMPELEC-ONE-Business-Smoke"
+          & $Setup.FullName /VERYSILENT /SUPPRESSMSGBOXES /NORESTART "/DIR=$InstallDir"
+          if ($LASTEXITCODE -ne 0) { throw "Windows-Installation fehlgeschlagen: $LASTEXITCODE" }
+          $InstalledExe = Join-Path $InstallDir "COMPELEC-ONE-Business.exe"
+          if (-not (Test-Path $InstalledExe)) { throw "Installierte Programmdatei fehlt." }
+          $Uninstaller = Join-Path $InstallDir "unins000.exe"
+          if (-not (Test-Path $Uninstaller)) { throw "Uninstaller wurde nicht installiert." }
+          & $Uninstaller /VERYSILENT /SUPPRESSMSGBOXES /NORESTART
+          if ($LASTEXITCODE -ne 0) { throw "Deinstallation fehlgeschlagen: $LASTEXITCODE" }
+          if (Test-Path $InstalledExe) { throw "Programmdatei wurde bei Deinstallation nicht entfernt." }
+      - name: Upload Windows test release
+        uses: actions/upload-artifact@v4
+        with:
+          name: compelec-one-business-windows-test
+          path: |
+            release/windows/*.exe
+            release/windows/*.zip
+            release/windows/SHA256SUMS.txt
           if-no-files-found: error
           retention-days: 30

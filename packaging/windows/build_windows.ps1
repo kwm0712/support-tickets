@@ -4,6 +4,21 @@ $Root = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 Set-Location $Root
 
 $Version = (Get-Content (Join-Path $Root 'VERSION') -Raw).Trim()
+if ($Version -notmatch '^(?<major>\d+)\.(?<minor>\d+)\.(?<patch>\d+)(?:[-+].*)?$') {
+  throw "VERSION hat kein gueltiges SemVer-Format: $Version"
+}
+$Major = [int]$Matches['major']
+$Minor = [int]$Matches['minor']
+$Patch = [int]$Matches['patch']
+foreach ($Part in @($Major, $Minor, $Patch)) {
+  if ($Part -lt 0 -or $Part -gt 65535) {
+    throw "Versionsbestandteil liegt ausserhalb des Inno-Setup-Bereichs (0..65535): $Part"
+  }
+}
+
+$env:COMPELEC_BUILD_VERSION = $Version
+$env:COMPELEC_BUILD_NUMERIC_VERSION = "$Major.$Minor.$Patch.0"
+
 $ReleaseDir = Join-Path $Root 'release\windows'
 $DistDir = Join-Path $Root 'dist\COMPELEC-ONE-Business'
 
@@ -14,25 +29,27 @@ python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
 python -m pip install 'pyinstaller>=6.10,<7'
 
-python -m PyInstaller `
-  --noconfirm `
-  --clean `
-  --onedir `
-  --name COMPELEC-ONE-Business `
-  --collect-all streamlit `
-  --collect-all altair `
-  --collect-all pydeck `
-  --add-data 'streamlit_v03.py;.' `
-  --add-data 'architecture.py;.' `
-  --add-data 'embedding.py;.' `
-  --add-data 'postgres_migrations.py;.' `
-  --add-data 'postgres_repository.py;.' `
-  --add-data 'support_service.py;.' `
-  --add-data 'v03_runtime.py;.' `
-  --add-data 'knowledge_ai.py;.' `
-  --add-data 'backup_restore.py;.' `
-  --add-data 'migrations\postgres;migrations\postgres' `
-  launch_compelec_one.py
+$PyInstallerArgs = @(
+  '--noconfirm',
+  '--clean',
+  '--onedir',
+  '--name', 'COMPELEC-ONE-Business',
+  '--collect-all', 'streamlit',
+  '--collect-all', 'altair',
+  '--collect-all', 'pydeck',
+  '--add-data', 'streamlit_v03.py;.',
+  '--add-data', 'architecture.py;.',
+  '--add-data', 'embedding.py;.',
+  '--add-data', 'postgres_migrations.py;.',
+  '--add-data', 'postgres_repository.py;.',
+  '--add-data', 'support_service.py;.',
+  '--add-data', 'v03_runtime.py;.',
+  '--add-data', 'knowledge_ai.py;.',
+  '--add-data', 'backup_restore.py;.',
+  '--add-data', 'migrations\postgres;migrations\postgres',
+  'launch_compelec_one.py'
+)
+& python -m PyInstaller @PyInstallerArgs
 
 if (-not (Test-Path (Join-Path $DistDir 'COMPELEC-ONE-Business.exe'))) {
   throw 'PyInstaller EXE wurde nicht erzeugt.'

@@ -143,3 +143,13 @@ Die GitHub-Actions-CI startet zusätzlich einen echten `pgvector/pgvector:pg16`-
 - Datenschutz- und produktive Betriebsfreigabe
 
 0.3.0-dev bleibt bis zum Abschluss dieser definierten MVP-Gates bewusst eine Entwicklungs-/Pilotversion.
+
+
+## COMPELEC ONE Business V2.0 – Enterprise-Ausbau
+
+Der V2.0-Arbeitszweig ergänzt die vorhandene Plattform um einen OIDC/JWT-Identity-Provider mit RS256, HTTPS-JWKS, Issuer-/Audience-/Zeitprüfung sowie explizitem Rollen- und Mandantenmapping.
+
+- [V2.0 Enterprise Release Gates](docs/V2.0-ENTERPRISE-RELEASE-GATES.md)
+- [OIDC-/Microsoft-Entra-ID-Konfiguration](docs/OIDC-SETUP-ENTRA-ID.md)
+
+Der V2.0-Zweig ist Entwicklungsstand und noch nicht freigegeben. Die reale Entra-ID-Abnahme, produktive Embedding-/Datenschutzfreigabe, vollständige Backup-/Restore-Abnahme, Windows-Installation auf einem sauberen System und Sicherheitsfreigabe bleiben verbindliche Release-Gates.

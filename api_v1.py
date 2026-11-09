@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from functools import lru_cache
 from typing import Any
 
 from fastapi import Depends, FastAPI, HTTPException, Request
@@ -12,7 +13,12 @@ from architecture import (
     has_permission,
 )
 from embedding import build_embedding_provider_from_env
-from identity import AuthenticationError, IdentityRequest, TrustedHeaderIdentityProvider
+from identity import (
+    AuthenticationError,
+    IdentityRequest,
+    OIDCIdentityProvider,
+    TrustedHeaderIdentityProvider,
+)
 from postgres_migrations import apply_postgres_migrations
 from postgres_repository import PostgresRepository
 from production_config import ProductionConfig, ProductionConfigError, load_production_config
@@ -32,9 +38,47 @@ def config() -> ProductionConfig:
         raise HTTPException(status_code=503, detail=f"Konfiguration nicht freigabefähig: {exc}") from exc
 
 
+@lru_cache(maxsize=8)
+def _cached_oidc_provider(
+    issuer: str,
+    audience: str,
+    jwks_url: str,
+    role_claim: str,
+    tenant_claim: str,
+    username_claim: str,
+    role_map_items: tuple[tuple[str, str], ...],
+    tenant_map_items: tuple[tuple[str, str], ...],
+) -> OIDCIdentityProvider:
+    return OIDCIdentityProvider(
+        issuer=issuer,
+        audience=audience,
+        jwks_url=jwks_url,
+        role_claim=role_claim,
+        tenant_claim=tenant_claim,
+        username_claim=username_claim,
+        role_map=dict(role_map_items),
+        tenant_map=dict(tenant_map_items),
+    )
+
+
+def build_identity_provider(cfg: ProductionConfig):
+    if cfg.identity_mode == "oidc":
+        return _cached_oidc_provider(
+            cfg.oidc_issuer,
+            cfg.oidc_audience,
+            cfg.oidc_jwks_url,
+            cfg.oidc_role_claim,
+            cfg.oidc_tenant_claim,
+            cfg.oidc_username_claim,
+            tuple(sorted(cfg.oidc_role_map.items())),
+            tuple(sorted(cfg.oidc_tenant_map.items())),
+        )
+    return TrustedHeaderIdentityProvider(default_tenant_id=cfg.tenant_id, require_tenant_header=cfg.is_production, tenant_map=cfg.trusted_tenant_map)
+
+
 def get_service(request: Request, cfg: ProductionConfig = Depends(config)) -> SupportService:
     try:
-        provider = TrustedHeaderIdentityProvider(default_tenant_id=cfg.tenant_id)
+        provider = build_identity_provider(cfg)
         user = provider.authenticate(IdentityRequest(headers=request.headers))
         repository = PostgresRepository(cfg.database_url, TenantContext(user.tenant_id))
         service = SupportService(repository, user, embedding_provider=build_embedding_provider_from_env())
@@ -49,6 +93,9 @@ def get_service(request: Request, cfg: ProductionConfig = Depends(config)) -> Su
 @app.on_event("startup")
 def startup() -> None:
     cfg = load_production_config()
+    if cfg.is_production:
+        runtime_repository = PostgresRepository(cfg.database_url, TenantContext(cfg.tenant_id))
+        runtime_repository.ensure_safe_runtime_role()
     apply_postgres_migrations(cfg.database_url)
 
 
