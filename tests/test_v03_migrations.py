@@ -75,6 +75,75 @@ class V03MigrationTests(unittest.TestCase):
             ).fetchall()
             self.assertEqual({row[0] for row in policies}, expected_tables)
 
+    def test_rls_blocks_cross_tenant_reads_and_writes_for_application_role(self) -> None:
+        apply_postgres_migrations(self.database_url)
+        tenant_a = f"rls-a-{uuid.uuid4().hex[:8]}"
+        tenant_b = f"rls-b-{uuid.uuid4().hex[:8]}"
+        role_name = f"rls_test_{uuid.uuid4().hex[:10]}"
+        role_password = uuid.uuid4().hex + "Aa9!"
+        with self.psycopg.connect(self.database_url) as admin:
+            admin.execute(
+                "CREATE ROLE " + role_name + " LOGIN PASSWORD %s",
+                (role_password,),
+            )
+            admin.execute(
+                f"GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO {role_name}"
+            )
+            admin.execute(
+                f"GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO {role_name}"
+            )
+            for tenant in (tenant_a, tenant_b):
+                admin.execute(
+                    "INSERT INTO tenants (tenant_key, display_name) VALUES (%s, %s)",
+                    (tenant, tenant),
+                )
+                admin.execute(
+                    """
+                    INSERT INTO tickets (
+                        tenant_key, ticket_no, subject, description, customer,
+                        status, priority, created_by
+                    ) VALUES (%s, %s, 'RLS test', 'Tenant boundary', 'Test',
+                              'Offen', 'Mittel', 'rls-test')
+                    """,
+                    (tenant, f"RLS-{tenant}"),
+                )
+
+        try:
+            conninfo = self.psycopg.conninfo.conninfo_to_dict(self.database_url)
+            conninfo.update(user=role_name, password=role_password)
+            with self.psycopg.connect(**conninfo) as application:
+                application.execute(
+                    "SELECT set_config('app.tenant_id', %s, true)",
+                    (tenant_a,),
+                )
+                visible = application.execute(
+                    "SELECT tenant_key FROM tickets ORDER BY tenant_key"
+                ).fetchall()
+                self.assertEqual([row[0] for row in visible], [tenant_a])
+                with self.assertRaises(self.psycopg.errors.InsufficientPrivilege):
+                    application.execute(
+                        """
+                        INSERT INTO tickets (
+                            tenant_key, ticket_no, subject, description, customer,
+                            status, priority, created_by
+                        ) VALUES (%s, %s, 'Forbidden', 'Cross tenant', 'Test',
+                                  'Offen', 'Mittel', 'rls-test')
+                        """,
+                        (tenant_b, f"RLS-BLOCK-{tenant_b}"),
+                    )
+        finally:
+            with self.psycopg.connect(self.database_url) as admin:
+                admin.execute(f"DROP OWNED BY {role_name}")
+                admin.execute(f"DROP ROLE IF EXISTS {role_name}")
+                admin.execute(
+                    "DELETE FROM tickets WHERE tenant_key = ANY(%s)",
+                    ([tenant_a, tenant_b],),
+                )
+                admin.execute(
+                    "DELETE FROM tenants WHERE tenant_key = ANY(%s)",
+                    ([tenant_a, tenant_b],),
+                )
+
     def test_repository_sets_transaction_local_tenant_context(self) -> None:
         from architecture import TenantContext
         from postgres_repository import PostgresRepository
