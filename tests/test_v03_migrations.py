@@ -119,6 +119,33 @@ class V03MigrationTests(unittest.TestCase):
                     "SELECT tenant_key FROM tickets ORDER BY tenant_key"
                 ).fetchall()
                 self.assertEqual([row[0] for row in visible], [tenant_a])
+
+                # A missing tenant context must fail closed.
+                with self.psycopg.connect(**conninfo) as no_context:
+                    self.assertIsNone(
+                        no_context.execute(
+                            "SELECT current_setting('app.tenant_id', true)"
+                        ).fetchone()[0]
+                    )
+                    self.assertEqual(
+                        no_context.execute(
+                            "SELECT tenant_key FROM tickets"
+                        ).fetchall(),
+                        [],
+                    )
+
+                # RLS silently filters cross-tenant UPDATE/DELETE targets.
+                updated = application.execute(
+                    "UPDATE tickets SET subject = 'Forbidden update' WHERE tenant_key = %s",
+                    (tenant_b,),
+                )
+                self.assertEqual(updated.rowcount, 0)
+                deleted = application.execute(
+                    "DELETE FROM tickets WHERE tenant_key = %s",
+                    (tenant_b,),
+                )
+                self.assertEqual(deleted.rowcount, 0)
+
                 with self.assertRaises(self.psycopg.errors.InsufficientPrivilege):
                     application.execute(
                         """
