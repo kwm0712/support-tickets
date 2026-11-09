@@ -70,3 +70,30 @@ jobs:
             SHA256SUMS-source.txt
           if-no-files-found: error
           retention-days: 30
+
+  windows-build:
+    runs-on: windows-latest
+    needs: test
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Install Inno Setup 6
+        shell: pwsh
+        run: choco install innosetup --yes --no-progress
+      - name: Build Windows installer and portable package
+        shell: pwsh
+        run: ./packaging/windows/build_windows.ps1
+      - name: Upload Windows test release
+        uses: actions/upload-artifact@v4
+        with:
+          name: compelec-one-business-windows-test
+          path: |
+            release/windows/*.exe
+            release/windows/*.zip
+            release/windows/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 30
