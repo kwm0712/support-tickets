@@ -37,6 +37,7 @@ class OIDCIdentityProviderTests(unittest.TestCase):
             audience="compelec-one-business",
             jwks_url="https://login.example.test/keys",
             role_map={"Business.Support.Admin": "admin", "Business.Support.Agent": "agent"},
+            tenant_map={"tenant-abc": "compelec"},
             jwks_client=FakeJwksClient(),
         )
 
@@ -75,6 +76,12 @@ class OIDCIdentityProviderTests(unittest.TestCase):
             with self.assertRaises(AuthenticationError):
                 self.provider.authenticate(IdentityRequest(headers={"Authorization": "Bearer token"}))
 
+    def test_unmapped_external_tenant_is_rejected(self):
+        claims = {**self.claims, "tid": "unknown-tenant"}
+        with patch("identity.jwt.decode", return_value=claims):
+            with self.assertRaises(AuthenticationError):
+                self.provider.authenticate(IdentityRequest(headers={"Authorization": "Bearer token"}))
+
     def test_invalid_signature_or_claims_are_rejected(self):
         with patch("identity.jwt.decode", side_effect=jwt.InvalidTokenError("invalid")):
             with self.assertRaises(AuthenticationError):
@@ -85,6 +92,7 @@ class OIDCIdentityProviderTests(unittest.TestCase):
             issuer="https://login.example.test",
             audience="compelec-one-business",
             jwks_url="https://login.example.test/keys",
+            tenant_map={"tenant-abc": "compelec"},
             jwks_client=FakeJwksClient(error=RuntimeError("network unavailable")),
         )
         with self.assertRaises(AuthenticationError):
@@ -96,12 +104,14 @@ class OIDCIdentityProviderTests(unittest.TestCase):
                 issuer="http://login.example.test",
                 audience="compelec-one-business",
                 jwks_url="https://login.example.test/keys",
+                tenant_map={"tenant-abc": "compelec"},
             )
         with self.assertRaises(ValueError):
             OIDCIdentityProvider(
                 issuer="https://login.example.test",
                 audience="compelec-one-business",
                 jwks_url="http://login.example.test/keys",
+                tenant_map={"tenant-abc": "compelec"},
             )
 
 
