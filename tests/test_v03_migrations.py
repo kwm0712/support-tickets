@@ -36,6 +36,56 @@ class V03MigrationTests(unittest.TestCase):
             }
         self.assertIn("0001_v03_core", versions)
         self.assertIn("0002_v03_hybrid_retrieval", versions)
+        self.assertIn("0003_tenant_row_level_security", versions)
+
+    def test_row_level_security_is_enabled_and_forced_for_all_tenant_tables(self) -> None:
+        apply_postgres_migrations(self.database_url)
+        expected_tables = {
+            "tenants",
+            "users",
+            "tickets",
+            "knowledge_articles",
+            "documents",
+            "document_chunks",
+            "assistant_runs",
+            "assistant_evidence",
+            "audit_log",
+        }
+        with self.psycopg.connect(self.database_url) as connection:
+            rows = connection.execute(
+                """
+                SELECT c.relname, c.relrowsecurity, c.relforcerowsecurity
+                FROM pg_class c
+                JOIN pg_namespace n ON n.oid = c.relnamespace
+                WHERE n.nspname = 'public'
+                  AND c.relname = ANY(%s)
+                """,
+                (list(expected_tables),),
+            ).fetchall()
+            self.assertEqual({row[0] for row in rows}, expected_tables)
+            self.assertTrue(all(row[1] and row[2] for row in rows))
+
+            policies = connection.execute(
+                """
+                SELECT tablename, policyname
+                FROM pg_policies
+                WHERE schemaname = 'public'
+                  AND policyname = 'tenant_isolation'
+                """
+            ).fetchall()
+            self.assertEqual({row[0] for row in policies}, expected_tables)
+
+    def test_repository_sets_transaction_local_tenant_context(self) -> None:
+        from architecture import TenantContext
+        from postgres_repository import PostgresRepository
+
+        tenant_id = f"rls-context-{uuid.uuid4().hex[:8]}"
+        repository = PostgresRepository(self.database_url, TenantContext(tenant_id))
+        with repository._connect() as connection:
+            configured_tenant = connection.execute(
+                "SELECT current_setting('app.tenant_id', true)"
+            ).fetchone()[0]
+            self.assertEqual(configured_tenant, tenant_id)
 
     def test_v02_sqlite_core_data_can_be_migrated(self) -> None:
         tenant = f"migration-{uuid.uuid4().hex[:10]}"
