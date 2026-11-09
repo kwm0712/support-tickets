@@ -43,6 +43,7 @@ class TrustedHeaderIdentityProvider:
         username_header: str = "x-compelec-user",
         role_header: str = "x-compelec-role",
         tenant_header: str = "x-compelec-tenant",
+        require_tenant_header: bool = False,
     ) -> None:
         if not default_tenant_id.strip():
             raise ValueError("default_tenant_id darf nicht leer sein.")
@@ -50,12 +51,16 @@ class TrustedHeaderIdentityProvider:
         self.username_header = username_header.lower()
         self.role_header = role_header.lower()
         self.tenant_header = tenant_header.lower()
+        self.require_tenant_header = require_tenant_header
 
     def authenticate(self, request: IdentityRequest) -> UserContext:
         headers = {str(k).lower(): str(v).strip() for k, v in request.headers.items()}
         username = headers.get(self.username_header, "")
         role = headers.get(self.role_header, "")
-        tenant_id = headers.get(self.tenant_header, "") or self.default_tenant_id
+        supplied_tenant_id = headers.get(self.tenant_header, "")
+        if self.require_tenant_header and not supplied_tenant_id:
+            raise AuthenticationError("Mandantenkennung aus dem vertrauenswürdigen Proxy fehlt.")
+        tenant_id = supplied_tenant_id or self.default_tenant_id
 
         if not username:
             raise AuthenticationError("Authentifizierter Benutzer fehlt.")
