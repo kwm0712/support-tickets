@@ -28,6 +28,7 @@ class ProductionConfig:
     oidc_username_claim: str = "preferred_username"
     oidc_role_map: dict[str, str] = field(default_factory=dict)
     oidc_tenant_map: dict[str, str] = field(default_factory=dict)
+    trusted_tenant_map: dict[str, str] = field(default_factory=dict)
 
     @property
     def is_production(self) -> bool:
@@ -51,6 +52,7 @@ def load_production_config() -> ProductionConfig:
     oidc_username_claim = os.getenv("CCS_OIDC_USERNAME_CLAIM", "preferred_username").strip()
     role_map_raw = os.getenv("CCS_OIDC_ROLE_MAP", "").strip()
     tenant_map_raw = os.getenv("CCS_OIDC_TENANT_MAP", "").strip()
+    trusted_tenant_map_raw = os.getenv("CCS_TRUSTED_TENANT_MAP", "").strip()
 
     errors: list[str] = []
     parsed = urlparse(database_url) if database_url else None
@@ -67,6 +69,7 @@ def load_production_config() -> ProductionConfig:
 
     oidc_role_map: dict[str, str] = {}
     oidc_tenant_map: dict[str, str] = {}
+    trusted_tenant_map: dict[str, str] = {}
     if role_map_raw:
         try:
             parsed_role_map = json.loads(role_map_raw)
@@ -87,8 +90,22 @@ def load_production_config() -> ProductionConfig:
             oidc_tenant_map = parsed_tenant_map
         except (json.JSONDecodeError, ValueError) as exc:
             errors.append(f"CCS_OIDC_TENANT_MAP ist ungültig: {exc}")
+    if trusted_tenant_map_raw:
+        try:
+            parsed_trusted_tenant_map = json.loads(trusted_tenant_map_raw)
+            if not isinstance(parsed_trusted_tenant_map, dict):
+                raise ValueError("Mapping muss ein JSON-Objekt sein.")
+            if not all(isinstance(key, str) and isinstance(value, str) for key, value in parsed_trusted_tenant_map.items()):
+                raise ValueError("Mapping-Schlüssel und -Werte müssen Zeichenketten sein.")
+            trusted_tenant_map = parsed_trusted_tenant_map
+        except (json.JSONDecodeError, ValueError) as exc:
+            errors.append(f"CCS_TRUSTED_TENANT_MAP ist ungültig: {exc}")
 
     if environment == "production" and identity_mode == "trusted-header":
+        if not trusted_tenant_map:
+            errors.append("CCS_TRUSTED_TENANT_MAP muss für produktive Trusted-Header-Authentifizierung explizit gesetzt sein")
+        if any(not key.strip() or not value.strip() for key, value in trusted_tenant_map.items()):
+            errors.append("CCS_TRUSTED_TENANT_MAP enthält leere Kennungen")
         if trusted_header_ack != "I_TRUST_MY_AUTHENTICATING_PROXY":
             errors.append("Trusted-Header-Authentifizierung in Produktion erfordert explizite Proxy-Vertrauensbestätigung CCS_TRUSTED_HEADER_MODE_ACK")
 
@@ -137,4 +154,5 @@ def load_production_config() -> ProductionConfig:
         oidc_username_claim=oidc_username_claim,
         oidc_role_map=oidc_role_map,
         oidc_tenant_map=oidc_tenant_map,
+        trusted_tenant_map=trusted_tenant_map,
     )
