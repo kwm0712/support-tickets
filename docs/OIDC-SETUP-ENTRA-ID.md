@@ -4,7 +4,7 @@
 
 Die REST-API kann OIDC-Bearer-Tokens validieren. Der Provider prüft RS256-Signatur über den konfigurierten HTTPS-JWKS-Endpunkt, Issuer, Audience, Ablaufzeit, Ausstellungszeit und Subject. Rollen und externe Mandanten werden ausschließlich über explizite Allowlist-Mappings übernommen.
 
-**Wichtig:** Der Codepfad ist noch keine produktive Entra-ID-Anbindung. Dafür müssen App-Registrierung, App-Rollen, Testbenutzer und reale Tokens in der Zielumgebung eingerichtet und abgenommen werden. Die Anwendung enthält derzeit keinen vollständigen interaktiven Login-Client; der aufrufende Client muss ein gültiges Bearer-Token beschaffen.
+**Wichtig:** Der Codepfad ist noch keine produktive Entra-ID-Anbindung. Dafür müssen App-Registrierung, App-Rollen, Testbenutzer und reale Tokens in der Zielumgebung eingerichtet und abgenommen werden. Der aktuelle OIDC-Provider ist zunächst in der REST-API verdrahtet. Die Streamlit-Oberfläche verwendet weiterhin lokale Anmeldung; ein durchgängiger OIDC-/Reverse-Proxy-Login für die Oberfläche ist ein offenes V2.0-Release-Gate. Die Anwendung enthält derzeit keinen vollständigen interaktiven Login-Client; der API-aufrufende Client muss ein gültiges Bearer-Token beschaffen.
 
 ## 1. Entra-App-Registrierung
 
