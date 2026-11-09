@@ -29,25 +29,27 @@ python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
 python -m pip install 'pyinstaller>=6.10,<7'
 
-python -m PyInstaller \`
-  --noconfirm \`
-  --clean \`
-  --onedir \`
-  --name COMPELEC-ONE-Business \`
-  --collect-all streamlit \`
-  --collect-all altair \`
-  --collect-all pydeck \`
-  --add-data 'streamlit_v03.py;.' \`
-  --add-data 'architecture.py;.' \`
-  --add-data 'embedding.py;.' \`
-  --add-data 'postgres_migrations.py;.' \`
-  --add-data 'postgres_repository.py;.' \`
-  --add-data 'support_service.py;.' \`
-  --add-data 'v03_runtime.py;.' \`
-  --add-data 'knowledge_ai.py;.' \`
-  --add-data 'backup_restore.py;.' \`
-  --add-data 'migrations\postgres;migrations\postgres' \`
-  launch_compelec_one.py
+$PyInstallerArgs = @(
+  '--noconfirm',
+  '--clean',
+  '--onedir',
+  '--name', 'COMPELEC-ONE-Business',
+  '--collect-all', 'streamlit',
+  '--collect-all', 'altair',
+  '--collect-all', 'pydeck',
+  '--add-data', 'streamlit_v03.py;.',
+  '--add-data', 'architecture.py;.',
+  '--add-data', 'embedding.py;.',
+  '--add-data', 'postgres_migrations.py;.',
+  '--add-data', 'postgres_repository.py;.',
+  '--add-data', 'support_service.py;.',
+  '--add-data', 'v03_runtime.py;.',
+  '--add-data', 'knowledge_ai.py;.',
+  '--add-data', 'backup_restore.py;.',
+  '--add-data', 'migrations\postgres;migrations\postgres',
+  'launch_compelec_one.py'
+)
+& python -m PyInstaller @PyInstallerArgs
 
 if (-not (Test-Path (Join-Path $DistDir 'COMPELEC-ONE-Business.exe'))) {
   throw 'PyInstaller EXE wurde nicht erzeugt.'
