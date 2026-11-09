@@ -46,9 +46,18 @@ CCS_OIDC_ROLE_MAP={"Compelec.Admin":"admin","Compelec.Support":"agent","Compelec
 CCS_OIDC_TENANT_MAP={"<TENANT-GUID-AUS-CLAIM-tid>":"compelec"}
 ```
 
-Das Tenant-Mapping ist eine Sicherheitsgrenze. Ein gültig signiertes Token eines nicht zugeordneten IdP-Mandanten wird abgewiesen. Die externe Tenant-GUID wird nicht ungeprüft als interner Datenbank-Mandant verwendet. Beim Trusted-Header-Modus ist der Header `x-compelec-tenant` in Produktion zwingend; es gibt keinen Rückfall auf den Standardmandanten.
+Das Tenant-Mapping ist eine Sicherheitsgrenze. Ein gültig signiertes Token eines nicht zugeordneten IdP-Mandanten wird abgewiesen. Die externe Tenant-GUID wird nicht ungeprüft als interner Datenbank-Mandant verwendet. Beim Trusted-Header-Modus ist der Header `x-compelec-tenant` in Produktion zwingend. Sein externer Wert wird zusätzlich über `CCS_TRUSTED_TENANT_MAP` auf einen internen Mandantenschlüssel abgebildet; unbekannte Werte werden abgewiesen. Es gibt keinen Rückfall auf den Standardmandanten.
 
 Für weitere Organisationen muss jede externe Tenant-GUID ausdrücklich auf einen internen Mandantenschlüssel abgebildet und organisatorisch freigegeben werden.
+
+Bei Trusted-Header-Betrieb gilt dieselbe Allowlist-Idee für den vom Proxy gesetzten Tenant-Header:
+
+```dotenv
+CCS_TRUSTED_HEADER_MODE_ACK=I_TRUST_MY_AUTHENTICATING_PROXY
+CCS_TRUSTED_TENANT_MAP={"<IDP-TENANT-GUID>":"compelec"}
+```
+
+Der Proxy muss die externe Tenant-GUID in `x-compelec-tenant` einsetzen; die Anwendung mappt sie auf den internen Schlüssel.
 
 ## 4. Produktionskonfiguration
 
