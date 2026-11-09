@@ -40,6 +40,7 @@ def load_production_config() -> ProductionConfig:
     tenant_name = os.getenv("CCS_TENANT_NAME", tenant_id).strip()
     embedding_provider = os.getenv("CCS_EMBEDDING_PROVIDER", "local-hash").strip().lower()
     identity_mode = os.getenv("CCS_IDENTITY_MODE", "trusted-header").strip().lower()
+    trusted_header_ack = os.getenv("CCS_TRUSTED_HEADER_MODE_ACK", "").strip()
     environment = os.getenv("CCS_ENVIRONMENT", "development").strip().lower()
 
     oidc_issuer = os.getenv("CCS_OIDC_ISSUER", "").strip()
@@ -86,6 +87,10 @@ def load_production_config() -> ProductionConfig:
             oidc_tenant_map = parsed_tenant_map
         except (json.JSONDecodeError, ValueError) as exc:
             errors.append(f"CCS_OIDC_TENANT_MAP ist ungültig: {exc}")
+
+    if environment == "production" and identity_mode == "trusted-header":
+        if trusted_header_ack != "I_TRUST_MY_AUTHENTICATING_PROXY":
+            errors.append("Trusted-Header-Authentifizierung in Produktion erfordert explizite Proxy-Vertrauensbestätigung CCS_TRUSTED_HEADER_MODE_ACK")
 
     if identity_mode == "oidc":
         if not oidc_issuer.startswith("https://"):
