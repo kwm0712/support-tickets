@@ -56,7 +56,7 @@ class PostgresRepository:
         rank = PRIVACY_LEVELS.index(requested)
         return PRIVACY_LEVELS[: rank + 1]
 
-    def assert_safe_runtime_role(self) -> str:
+    def ensure_safe_runtime_role(self) -> str:
         """Fail closed if the connected PostgreSQL role can bypass row-level security."""
         with self._connect() as connection:
             row = connection.execute(
