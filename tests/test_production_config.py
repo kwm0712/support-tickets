@@ -16,6 +16,7 @@ class ProductionConfigTests(unittest.TestCase):
             "CCS_EMBEDDING_PROVIDER": "openai-compatible",
             "CCS_IDENTITY_MODE": "trusted-header",
             "CCS_TRUSTED_HEADER_MODE_ACK": "I_TRUST_MY_AUTHENTICATING_PROXY",
+            "CCS_TRUSTED_TENANT_MAP": '{"entra-tenant-guid":"compelec"}',
             "CCS_ENVIRONMENT": "production",
         }
         base.update(overrides)
@@ -29,6 +30,11 @@ class ProductionConfigTests(unittest.TestCase):
 
     def test_trusted_header_production_requires_explicit_proxy_acknowledgement(self):
         with self._env(CCS_TRUSTED_HEADER_MODE_ACK=""):
+            with self.assertRaises(ProductionConfigError):
+                load_production_config()
+
+    def test_trusted_header_production_requires_tenant_allowlist(self):
+        with self._env(CCS_TRUSTED_TENANT_MAP=""):
             with self.assertRaises(ProductionConfigError):
                 load_production_config()
 
