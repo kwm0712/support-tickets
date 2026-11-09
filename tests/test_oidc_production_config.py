@@ -14,6 +14,7 @@ class OIDCProductionConfigTests(unittest.TestCase):
             "CCS_TENANT_ID": "compelec",
             "CCS_TENANT_NAME": "Compelec Computersysteme GmbH",
             "CCS_EMBEDDING_PROVIDER": "openai-compatible",
+            "CCS_LICENSE_MODE": "licensed",
             "CCS_IDENTITY_MODE": "oidc",
             "CCS_ENVIRONMENT": "production",
             "CCS_OIDC_ISSUER": "https://login.microsoftonline.com/example/v2.0",
