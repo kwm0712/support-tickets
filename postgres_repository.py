@@ -12,8 +12,7 @@ class PostgresRepository:
 
     The repository never accepts a tenant identifier per domain method. The tenant is
     fixed when the repository is created, reducing the risk of accidental cross-tenant
-    queries. Authorization remains a service-layer responsibility; tenant isolation is
-    enforced here as a second boundary.
+    queries. PostgreSQL Row-Level Security provides a second, database-enforced boundary.
     """
 
     def __init__(self, database_url: str, tenant: TenantContext) -> None:
@@ -30,7 +29,32 @@ class PostgresRepository:
             raise RuntimeError(
                 "PostgreSQL-Unterstützung benötigt das Paket 'psycopg'."
             ) from exc
-        return psycopg.connect(self.database_url, row_factory=dict_row)
+
+        connection = psycopg.connect(self.database_url, row_factory=dict_row)
+        try:
+            # Transaction-local setting: it is automatically cleared on commit/rollback.
+            # Missing tenant context therefore denies access under the RLS policies.
+            connection.execute(
+                "SELECT set_config('app.tenant_id', %s, true)",
+                (self.tenant.tenant_id,),
+            )
+        except Exception:
+            connection.close()
+            raise
+        return connection
+
+    @staticmethod
+    def _vector_literal(embedding: EmbeddingVector) -> str:
+        if len(embedding.values) != embedding.dimensions:
+            raise ValueError("Embedding-Vektor hat eine ungültige Länge.")
+        return "[" + ",".join(f"{value:.12g}" for value in embedding.values) + "]"
+
+    @staticmethod
+    def _allowed_privacy_levels(requested: str) -> tuple[str, ...]:
+        if requested not in PRIVACY_LEVELS:
+            raise ValueError(f"Ungültige Datenschutzstufe: {requested}")
+        rank = PRIVACY_LEVELS.index(requested)
+        return PRIVACY_LEVELS[: rank + 1]
 
     @staticmethod
     def _vector_literal(embedding: EmbeddingVector) -> str:
