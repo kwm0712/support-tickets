@@ -23,6 +23,7 @@ class OIDCProductionConfigTests(unittest.TestCase):
             "CCS_OIDC_TENANT_CLAIM": "tid",
             "CCS_OIDC_USERNAME_CLAIM": "preferred_username",
             "CCS_OIDC_ROLE_MAP": '{"Compelec.Admin":"admin","Compelec.Support":"agent","Compelec.ReadOnly":"viewer"}',
+            "CCS_OIDC_TENANT_MAP": '{"11111111-2222-3333-4444-555555555555":"compelec"}',
         }
         values.update(overrides)
         return patch.dict(os.environ, values, clear=True)
@@ -33,6 +34,7 @@ class OIDCProductionConfigTests(unittest.TestCase):
         self.assertEqual(cfg.identity_mode, "oidc")
         self.assertEqual(cfg.oidc_audience, "api://compelec-one-business")
         self.assertEqual(cfg.oidc_role_map["Compelec.Admin"], "admin")
+        self.assertEqual(cfg.oidc_tenant_map["11111111-2222-3333-4444-555555555555"], "compelec")
 
     def test_oidc_requires_https_jwks(self):
         with self._env(CCS_OIDC_JWKS_URL="http://login.example.test/keys"):
@@ -41,6 +43,11 @@ class OIDCProductionConfigTests(unittest.TestCase):
 
     def test_production_oidc_requires_explicit_role_mapping(self):
         with self._env(CCS_OIDC_ROLE_MAP=""):
+            with self.assertRaises(ProductionConfigError):
+                load_production_config()
+
+    def test_oidc_requires_explicit_tenant_mapping(self):
+        with self._env(CCS_OIDC_TENANT_MAP=""):
             with self.assertRaises(ProductionConfigError):
                 load_production_config()
 
