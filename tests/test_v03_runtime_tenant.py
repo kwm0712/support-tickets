@@ -43,7 +43,7 @@ class V03RuntimeTenantTests(unittest.TestCase):
 
         repository_cls.assert_called_once()
         self.assertEqual(repository_cls.call_args.args[1].tenant_id, "parish-a")
-        repository.assert_safe_runtime_role.assert_called_once()
+        repository.ensure_safe_runtime_role.assert_called_once()
         apply_migrations.assert_called_once()
         service.ensure_tenant.assert_called_once_with("Compelec Computersysteme GmbH")
         self.assertIs(result, service)
@@ -68,7 +68,7 @@ class V03RuntimeTenantTests(unittest.TestCase):
         build_support_service({"username": "local-user", "role": "admin"})
 
         self.assertEqual(repository_cls.call_args.args[1].tenant_id, "compelec")
-        repository_cls.return_value.assert_safe_runtime_role.assert_not_called()
+        repository_cls.return_value.ensure_safe_runtime_role.assert_not_called()
 
 
 if __name__ == "__main__":
