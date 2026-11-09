@@ -56,6 +56,24 @@ class PostgresRepository:
         rank = PRIVACY_LEVELS.index(requested)
         return PRIVACY_LEVELS[: rank + 1]
 
+    def assert_safe_runtime_role(self) -> str:
+        """Fail closed if the connected PostgreSQL role can bypass row-level security."""
+        with self._connect() as connection:
+            row = connection.execute(
+                """
+                SELECT current_user AS role_name, rolsuper, rolbypassrls
+                FROM pg_roles
+                WHERE rolname = current_user
+                """
+            ).fetchone()
+        if not row:
+            raise RuntimeError("PostgreSQL-Laufzeitrolle konnte nicht ermittelt werden.")
+        if bool(row["rolsuper"]) or bool(row["rolbypassrls"]):
+            raise RuntimeError(
+                "Unsichere PostgreSQL-Laufzeitrolle: SUPERUSER und BYPASSRLS sind verboten."
+            )
+        return str(row["role_name"])
+
     def healthcheck(self) -> bool:
         with self._connect() as connection:
             row = connection.execute("SELECT 1 AS ok").fetchone()
