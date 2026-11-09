@@ -78,12 +78,6 @@ def _authenticate_production_ui() -> dict[str, str]:
 def login_view() -> None:
     st.title("COMPELEC ONE Business")
     st.caption("PostgreSQL · pgvector · Tenant/RBAC Architecture")
-    license_status = get_license_status()
-    if not license_status.valid:
-        st.error(license_status.message)
-        st.stop()
-    st.info(license_status.message)
-
     with st.form("login_v03"):
         username = st.text_input("Benutzername", value="admin")
         password = st.text_input("Kennwort", type="password")
@@ -112,6 +106,12 @@ try:
 except RuntimeError as exc:
     st.error(f"Sicherheits- oder Konfigurationsfehler: {exc}")
     st.stop()
+
+license_status = get_license_status()
+if not license_status.valid:
+    st.error(license_status.message)
+    st.stop()
+st.info(license_status.message)
 
 try:
     production_config = load_production_config()
