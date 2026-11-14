@@ -28,6 +28,18 @@ Prüflauf: https://github.com/kwm0712/support-tickets/actions/runs/43607430856
 
 Diese CI-Prüfung ist ein reproduzierbarer technischer Basistest, aber keine Freigabe für den Produktivbetrieb. Es wurden keine produktiven Datenbanken angelegt oder verändert. Die Streamlit-Anwendung verwendet weiterhin keine PostgreSQL-Verbindung und speichert Daten nur im Sitzungsspeicher.
 
+## V1.2 – Datenzugriffsschicht (Grundlage)
+- `database/db.py` kapselt den PostgreSQL-Zugriff.
+- Jede Operation verlangt Mandanten-ID und Benutzer-ID; die Benutzer-ID muss aus einer serverseitig geprüften Anmeldung stammen.
+- Vor jeder Datenoperation wird innerhalb derselben Transaktion `app.tenant_id` mit transaktionslokalem Gültigkeitsbereich gesetzt.
+- Der Benutzer wird unter diesem RLS-Kontext auf Aktivität und Mandantenzugehörigkeit geprüft.
+- Fehlt `COMPELEC_DATABASE_URL`, wird der Zugriff geschlossen verweigert.
+- Implementierte Repository-Funktionen: Kunden lesen/anlegen, Supportticket anlegen, Telefonnotiz und E-Mail-Entwurf anlegen.
+- E-Mail-Entwürfe bleiben im Status `draft`; es gibt keinen Versandmechanismus.
+- Unit-Tests prüfen Eingabevalidierung und Fail-closed-Verhalten.
+
+**Wichtige Grenze:** Es gibt noch keine Anmeldemaske oder produktive Identitätsprüfung in der Streamlit-Oberfläche. Die Repository-Funktionen dürfen erst nach Einbindung einer vertrauenswürdigen Authentifizierung aufgerufen werden. Ein vom Browser frei übergebener Benutzerwert ist keine Authentifizierung.
+
 ## Nächste technische Schritte
 1. Datenzugriffsschicht mit transaktionsgebundenem Mandantenkontext implementieren; ohne authentifizierten Benutzer keinen Datenbankzugriff zulassen.
 2. Automatisierte Tests für Repository-Funktionen und RLS ergänzen.
