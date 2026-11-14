@@ -124,6 +124,7 @@ CREATE INDEX idx_email_approval ON email_drafts(tenant_id, approval_status, crea
 CREATE INDEX idx_audit_entity_time ON audit_log(tenant_id, entity_type, entity_id, created_at DESC);
 
 -- Fail-closed: Ohne gesetzten Mandantenkontext liefert RLS keine Mandantendaten.
+ALTER TABLE tenants ENABLE ROW LEVEL SECURITY;
 ALTER TABLE app_users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE customers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE customer_interactions ENABLE ROW LEVEL SECURITY;
@@ -132,6 +133,9 @@ ALTER TABLE phone_call_details ENABLE ROW LEVEL SECURITY;
 ALTER TABLE email_drafts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE audit_log ENABLE ROW LEVEL SECURITY;
 
+CREATE POLICY tenant_isolation_tenants ON tenants
+    USING (id = NULLIF(current_setting('app.tenant_id', TRUE), '')::BIGINT)
+    WITH CHECK (id = NULLIF(current_setting('app.tenant_id', TRUE), '')::BIGINT);
 CREATE POLICY tenant_isolation_app_users ON app_users
     USING (tenant_id = NULLIF(current_setting('app.tenant_id', TRUE), '')::BIGINT)
     WITH CHECK (tenant_id = NULLIF(current_setting('app.tenant_id', TRUE), '')::BIGINT);
