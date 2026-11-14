@@ -160,9 +160,9 @@ def create_support_ticket(
                      description, priority, created_by)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING id
-                """.replace(", created_by", ""),
+                """,
                 (tenant_id, customer_id, interaction_id, ticket_no.strip(),
-                 title.strip(), description.strip(), priority),
+                 title.strip(), description.strip(), priority, actor_user_id),
             )
             return int(cur.fetchone()["id"])
 
