@@ -42,7 +42,7 @@ BEGIN
     -- Der explizite Mandantenfilter B darf unter Tenant-A-Kontext keine Zeile ändern.
     UPDATE customers
        SET company_name = 'UNZULAESSIGER CROSS-TENANT-ZUGRIFF'
-     WHERE tenant_id = :'tenant_b_id';
+     WHERE company_name = 'Beispielkunde TEST-B';
     GET DIAGNOSTICS affected = ROW_COUNT;
     IF affected <> 0 THEN
         RAISE EXCEPTION 'RLS-Fehler: Mandantenfremde Zeilen wurden verändert';
