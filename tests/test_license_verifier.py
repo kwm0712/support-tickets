@@ -25,7 +25,7 @@ class SignedLicenseTests(unittest.TestCase):
         self.assertEqual(result.features,("support","knowledge"))
     def test_tampered_payload_rejected(self):
         changed=dict(self.payload,features=["admin"])
-        with self.assertRaisesRegex(LicenseValidationError,"Signatur"): verify_license_file(self.write(changed,self.payload),self.public,expected_tenant="compelec",now=self.now)
+        with self.assertRaisesRegex(LicenseValidationError,"(?i)signatur"): verify_license_file(self.write(changed,self.payload),self.public,expected_tenant="compelec",now=self.now)
     def test_wrong_tenant_rejected(self):
         with self.assertRaisesRegex(LicenseValidationError,"anderen"): verify_license_file(self.write(),self.public,expected_tenant="other",now=self.now)
     def test_expired_license_rejected(self):
@@ -35,6 +35,6 @@ class SignedLicenseTests(unittest.TestCase):
         wrong=dict(self.payload,product="other")
         with self.assertRaisesRegex(LicenseValidationError,"nicht für"): verify_license_file(self.write(wrong),self.public,expected_tenant="compelec",now=self.now)
     def test_missing_public_key_rejected(self):
-        with self.assertRaisesRegex(LicenseValidationError,"Prüfschlüssel"): verify_license_file(self.write(),"",expected_tenant="compelec",now=self.now)
+        with self.assertRaisesRegex(LicenseValidationError,"(?i)prüfschlüssel"): verify_license_file(self.write(),"",expected_tenant="compelec",now=self.now)
 
 if __name__ == "__main__": unittest.main()
