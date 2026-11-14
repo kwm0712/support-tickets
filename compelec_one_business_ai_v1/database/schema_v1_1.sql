@@ -65,13 +65,15 @@ CREATE TABLE support_tickets (
     priority TEXT NOT NULL DEFAULT 'normal' CHECK (priority IN ('low', 'normal', 'high', 'critical')),
     status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'in_progress', 'waiting', 'resolved', 'closed')),
     assigned_to BIGINT,
+    created_by BIGINT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     UNIQUE (tenant_id, id),
     UNIQUE (tenant_id, ticket_no),
     FOREIGN KEY (tenant_id, customer_id) REFERENCES customers(tenant_id, id),
     FOREIGN KEY (tenant_id, interaction_id) REFERENCES customer_interactions(tenant_id, id),
-    FOREIGN KEY (tenant_id, assigned_to) REFERENCES app_users(tenant_id, id)
+    FOREIGN KEY (tenant_id, assigned_to) REFERENCES app_users(tenant_id, id),
+    FOREIGN KEY (tenant_id, created_by) REFERENCES app_users(tenant_id, id)
 );
 
 CREATE TABLE phone_call_details (
