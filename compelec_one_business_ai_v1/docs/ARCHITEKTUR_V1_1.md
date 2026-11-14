@@ -22,12 +22,15 @@ Das SQL-Grundschema verwendet zusammengesetzte Fremdschlüssel mit tenant_id, da
 - Auditdaten dürfen nicht stillschweigend durch normale Fachbenutzer verändert werden.
 - Backups, Wiederherstellungstests, TLS, Secret-Verwaltung und Berechtigungskonzept sind vor Produktivbetrieb zwingend.
 
-## Status
-Dies ist ein Architekturentwurf und ein SQL-Schema zur Prüfung. Es wurde nicht gegen eine laufende PostgreSQL-Instanz ausgeführt. Es wurden keine Datenbank angelegt, keine Zugangsdaten hinterlegt und keine produktiven Daten verändert.
+## Technischer Prüfstatus
+Das Schema wurde am 14.11.2026 in einer isolierten PostgreSQL-16-Instanz innerhalb von GitHub Actions erfolgreich eingespielt. Der separate RLS-Test mit zwei künstlichen Testmandanten war erfolgreich. Auch die Python-Syntax- und Abhängigkeitsprüfung war erfolgreich.
+Prüflauf: https://github.com/kwm0712/support-tickets/actions/runs/43607430856
+
+Diese CI-Prüfung ist ein reproduzierbarer technischer Basistest, aber keine Freigabe für den Produktivbetrieb. Es wurden keine produktiven Datenbanken angelegt oder verändert. Die Streamlit-Anwendung verwendet weiterhin keine PostgreSQL-Verbindung und speichert Daten nur im Sitzungsspeicher.
 
 ## Nächste technische Schritte
-1. SQL in einer isolierten PostgreSQL-Testinstanz ausführen und Migrationstests ergänzen.
-2. Rollenmodell und RLS-Verhalten mit zwei Testmandanten nachweisen.
-3. Datenzugriffsschicht implementieren und Transaktionskontext erzwingen.
-4. Streamlit-Demonstrator schrittweise auf persistente Speicherung umstellen.
+1. Datenzugriffsschicht mit transaktionsgebundenem Mandantenkontext implementieren; ohne authentifizierten Benutzer keinen Datenbankzugriff zulassen.
+2. Automatisierte Tests für Repository-Funktionen und RLS ergänzen.
+3. Erst nach geklärtem Authentifizierungs- und Rollenmodell die Streamlit-Oberfläche schrittweise auf persistente Speicherung umstellen.
+4. Backups, Wiederherstellung, Datenschutz und Audit-Protokoll fachlich abnehmen.
 5. Erst danach Integrationen (STARFACE, IMAP/SMTP bzw. Microsoft 365) anbinden.
