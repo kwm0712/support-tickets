@@ -117,6 +117,21 @@ with tab1:
                                 st.error(f"Fehlerhafter Schritt: {step['name']}")
             except requests.RequestException as exc:
                 st.warning(f"Jobdetails nicht verfügbar: {exc}")
+            try:
+                artifacts, artifact_err = gh_get(f"/repos/{repo}/actions/runs/{run['id']}/artifacts", token)
+                if artifact_err:
+                    st.caption(f"Artefakte: {artifact_err}")
+                else:
+                    available = artifacts.get("artifacts", [])
+                    if available:
+                        st.write("**Build-Artefakte**")
+                        for artifact in available:
+                            st.write(f"- {artifact.get('name')} · {artifact.get('size_in_bytes', 0):,} Bytes · Ablauf: {artifact.get('expires_at', '')[:10]}")
+                        st.caption("Zum Herunterladen den Workflow öffnen und den Bereich Artifacts verwenden.")
+                    else:
+                        st.caption("Keine Build-Artefakte für diesen Lauf veröffentlicht.")
+            except requests.RequestException as exc:
+                st.caption(f"Artefaktliste nicht verfügbar: {exc}")
 
     if failed:
         st.subheader("Fehlerdiagnose – Priorität")
