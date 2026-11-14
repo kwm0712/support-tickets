@@ -99,14 +99,27 @@ jobs:
           $Setup = Get-ChildItem "release/windows/*Setup*.exe" | Select-Object -First 1
           if (-not $Setup) { throw "Windows-Setup-EXE fehlt." }
           $InstallDir = Join-Path $env:RUNNER_TEMP "COMPELEC-ONE-Business-Smoke"
-          & $Setup.FullName /VERYSILENT /SUPPRESSMSGBOXES /NORESTART "/DIR=$InstallDir"
-          if ($LASTEXITCODE -ne 0) { throw "Windows-Installation fehlgeschlagen: $LASTEXITCODE" }
+          $InstallProcess = Start-Process -FilePath $Setup.FullName -ArgumentList @(
+            "/VERYSILENT",
+            "/SUPPRESSMSGBOXES",
+            "/NORESTART",
+            "/DIR=$InstallDir"
+          ) -Wait -PassThru -NoNewWindow
+          if ($InstallProcess.ExitCode -ne 0) {
+            throw "Windows-Installation fehlgeschlagen. ExitCode: $($InstallProcess.ExitCode)"
+          }
           $InstalledExe = Join-Path $InstallDir "COMPELEC-ONE-Business.exe"
           if (-not (Test-Path $InstalledExe)) { throw "Installierte Programmdatei fehlt." }
           $Uninstaller = Join-Path $InstallDir "unins000.exe"
           if (-not (Test-Path $Uninstaller)) { throw "Uninstaller wurde nicht installiert." }
-          & $Uninstaller /VERYSILENT /SUPPRESSMSGBOXES /NORESTART
-          if ($LASTEXITCODE -ne 0) { throw "Deinstallation fehlgeschlagen: $LASTEXITCODE" }
+          $UninstallProcess = Start-Process -FilePath $Uninstaller -ArgumentList @(
+            "/VERYSILENT",
+            "/SUPPRESSMSGBOXES",
+            "/NORESTART"
+          ) -Wait -PassThru -NoNewWindow
+          if ($UninstallProcess.ExitCode -ne 0) {
+            throw "Deinstallation fehlgeschlagen. ExitCode: $($UninstallProcess.ExitCode)"
+          }
           if (Test-Path $InstalledExe) { throw "Programmdatei wurde bei Deinstallation nicht entfernt." }
       - name: Upload Windows test release
         uses: actions/upload-artifact@v4
