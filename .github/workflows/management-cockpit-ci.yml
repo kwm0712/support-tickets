@@ -1,0 +1,31 @@
+name: COMPELEC ONE Management Cockpit CI
+
+on:
+  push:
+    branches:
+      - feature/compelec-management-cockpit-v0.4
+    paths:
+      - "management-cockpit/**"
+      - ".github/workflows/management-cockpit-ci.yml"
+  pull_request:
+    paths:
+      - "management-cockpit/**"
+      - ".github/workflows/management-cockpit-ci.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  cockpit-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Quellcode auschecken
+        uses: actions/checkout@v4
+      - name: Python einrichten
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Abhängigkeiten installieren
+        run: python -m pip install -r management-cockpit/requirements.txt
+      - name: Python-Syntax prüfen
+        run: python -m compileall -q management-cockpit
