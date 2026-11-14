@@ -10,14 +10,18 @@ SELECT id, 'K-001', 'Beispielkunde ' || tenant_code
 FROM tenants
 WHERE tenant_code IN ('TEST-A', 'TEST-B');
 
--- Laufzeitrolle darf Daten bearbeiten, ist aber weder Tabellen-Owner noch BYPASSRLS.
+-- Mandanten-IDs als Testparameter ermitteln, solange der DB-Administrator aktiv ist.
+SELECT id AS tenant_a_id FROM tenants WHERE tenant_code = 'TEST-A' \gset
+SELECT id AS tenant_b_id FROM tenants WHERE tenant_code = 'TEST-B' \gset
+
+-- Laufzeitrolle ist weder Tabellen-Owner noch BYPASSRLS.
 CREATE ROLE compelec_app_test LOGIN PASSWORD 'ci-only-test-password' NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT;
 GRANT USAGE ON SCHEMA public TO compelec_app_test;
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO compelec_app_test;
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO compelec_app_test;
 
 SET ROLE compelec_app_test;
-SELECT set_config('app.tenant_id', (SELECT id::text FROM tenants WHERE tenant_code = 'TEST-A'), false);
+SELECT set_config('app.tenant_id', :'tenant_a_id', false);
 
 DO $$
 DECLARE
@@ -35,9 +39,10 @@ BEGIN
         RAISE EXCEPTION 'RLS-Fehler: Erwartet 1 sichtbaren Kunden, gefunden %', visible_customers;
     END IF;
 
+    -- Der explizite Mandantenfilter B darf unter Tenant-A-Kontext keine Zeile ändern.
     UPDATE customers
        SET company_name = 'UNZULAESSIGER CROSS-TENANT-ZUGRIFF'
-     WHERE tenant_id = (SELECT id FROM tenants WHERE tenant_code = 'TEST-B');
+     WHERE tenant_id = :'tenant_b_id';
     GET DIAGNOSTICS affected = ROW_COUNT;
     IF affected <> 0 THEN
         RAISE EXCEPTION 'RLS-Fehler: Mandantenfremde Zeilen wurden verändert';
@@ -45,5 +50,6 @@ BEGIN
 END $$;
 
 RESET ROLE;
+DROP OWNED BY compelec_app_test;
 DROP ROLE compelec_app_test;
 \echo 'RLS-Mandantentrennung erfolgreich geprüft.'
