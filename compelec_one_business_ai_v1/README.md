@@ -46,6 +46,16 @@ Die CI-Prüfung ist ein technischer Basistest, keine Produktivfreigabe. Das Sche
 7. Wissensimport und RAG mit Quellenangaben.
 8. Automatisierte Funktions-, Integrations- und Sicherheitstests sowie Installationspaket.
 
+## V1.2 – PostgreSQL-Zugriffsschicht (Entwicklungsstand)
+- Datenzugriff gekapselt in `database/db.py`.
+- Mandantenkontext wird pro Transaktion lokal gesetzt und vor der Datenoperation gegen einen aktiven Benutzer im Mandanten geprüft.
+- Datenbankverbindung ausschließlich über die Umgebungsvariable `COMPELEC_DATABASE_URL`; keine Zugangsdaten im Quellcode.
+- Fehlt die Konfiguration oder ist der Benutzer nicht berechtigt, wird der Zugriff verweigert.
+- Kunden-, Support-, Telefon- und E-Mail-Repository-Funktionen sind vorbereitet.
+- Unit-Tests werden in GitHub Actions ausgeführt.
+
+**Noch nicht produktiv verbunden:** Die Streamlit-Oberfläche besitzt noch keine belastbare Benutzeranmeldung und ruft die Datenzugriffsschicht deshalb noch nicht auf. Keine echten Kundendaten verwenden.
+
 ## V1.1 – technische Grundlage
 - GitHub Actions prüft Python-Syntax, Abhängigkeiten, PostgreSQL-Schema und RLS-Mandantentrennung.
 - PostgreSQL-Schema: `database/schema_v1_1.sql`.
