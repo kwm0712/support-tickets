@@ -37,3 +37,10 @@ Bei Pushes auf den Branch `compelec-one-business-ai-v1.0` und bei Pull Requests 
 5. E-Mail-Anbindung (IMAP/SMTP oder Microsoft 365) mit Entwurfs- und Freigabeworkflow.
 6. Wissensimport und RAG mit Quellenangaben.
 7. Automatisierte Funktions-, Integrations- und Sicherheitstests sowie Installationspaket.
+
+
+## V1.1 – technische Grundlage
+- GitHub Actions prüft Python-Syntax und Abhängigkeiten.
+- PostgreSQL-Schemaentwurf für Mandanten, Benutzerrollen, Kundenhistorie, Support, Telefon, E-Mail-Freigaben und Audit-Protokoll: `database/schema_v1_1.sql`.
+- Architektur- und Sicherheitsentscheidungen: `docs/ARCHITEKTUR_V1_1.md`.
+- Das SQL ist ein Entwurf und wurde noch nicht gegen eine laufende PostgreSQL-Instanz getestet oder angewendet.
