@@ -50,6 +50,16 @@ class ProductionConfigTests(unittest.TestCase):
             with self.assertRaises(ProductionConfigError):
                 load_production_config()
 
+    def test_external_embedding_provider_is_rejected_in_production(self):
+        with self._env(CCS_EMBEDDING_PROVIDER="openai-compatible"):
+            with self.assertRaises(ProductionConfigError):
+                load_production_config()
+
+    def test_missing_local_embedding_cache_is_rejected_in_production(self):
+        with self._env(CCS_EMBEDDING_CACHE_DIR=""):
+            with self.assertRaises(ProductionConfigError):
+                load_production_config()
+
     def test_localhost_database_is_rejected_in_production(self):
         with self._env(CCS_DATABASE_URL="postgresql://u:p@127.0.0.1/db"):
             with self.assertRaises(ProductionConfigError):
