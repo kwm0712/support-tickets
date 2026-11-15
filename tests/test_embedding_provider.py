@@ -7,6 +7,7 @@ from unittest.mock import patch
 
 from embedding import (
     DeterministicLocalEmbeddingProvider,
+    LocalFastEmbedProvider,
     OpenAICompatibleEmbeddingProvider,
     build_embedding_provider_from_env,
 )
@@ -86,6 +87,42 @@ class EmbeddingProviderTests(unittest.TestCase):
             },
             clear=True,
         ):
+            with self.assertRaises(RuntimeError):
+                build_embedding_provider_from_env()
+
+
+    def test_local_fastembed_uses_offline_model_and_validates_vector(self) -> None:
+        import sys
+        import tempfile
+        from types import SimpleNamespace
+
+        captured = {}
+
+        class FakeTextEmbedding:
+            def __init__(self, **kwargs):
+                captured.update(kwargs)
+
+            def embed(self, texts):
+                self.asserted_texts = texts
+                return iter([[0.25] * 384])
+
+        fake_module = SimpleNamespace(TextEmbedding=FakeTextEmbedding)
+        with tempfile.TemporaryDirectory() as cache:
+            with patch.dict(sys.modules, {"fastembed": fake_module}):
+                provider = LocalFastEmbedProvider(cache_dir=cache)
+                vector = provider.embed("VPN-Zertifikat erneuern")
+        self.assertTrue(captured["local_files_only"])
+        self.assertEqual(captured["model_name"], LocalFastEmbedProvider.model_name)
+        self.assertEqual(vector.dimensions, 384)
+        self.assertEqual(len(vector.values), 384)
+        self.assertEqual(vector.model_id, LocalFastEmbedProvider.model_id)
+
+    def test_local_fastembed_fails_if_model_cache_is_missing(self) -> None:
+        with self.assertRaises(RuntimeError):
+            LocalFastEmbedProvider(cache_dir="this-path-does-not-exist")
+
+    def test_local_fastembed_factory_requires_cache_path(self) -> None:
+        with patch.dict(os.environ, {"CCS_EMBEDDING_PROVIDER": "local-fastembed"}, clear=True):
             with self.assertRaises(RuntimeError):
                 build_embedding_provider_from_env()
 
