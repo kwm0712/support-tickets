@@ -30,6 +30,7 @@ Der Branch `agent/ccs-agent-support-v0.3-architecture` baut auf 0.2 auf. Phase 2
 - Rollen-/Permission-Matrix für Tickets, Wissen, Dokumente, Assistenz und Audit
 - lokale Embedding-Schnittstelle `EmbeddingProvider`
 - deterministischer lokaler Testprovider `ccs-local-hash-v1`
+- lokaler semantischer Provider FastEmbed/ONNX mit multilingualem MiniLM-Modell (384D), Offline-Ladepfad und explizitem Provisionierungsskript
 - Hybrid Retrieval aus PostgreSQL Full Text Search + pgvector Cosine Similarity
 - Embeddings für Wissensartikel und Dokumentsegmente
 - normalisierte `assistant_evidence` mit lexical/vector/combined score
@@ -38,7 +39,7 @@ Der Branch `agent/ccs-agent-support-v0.3-architecture` baut auf 0.2 auf. Phase 2
 - Migrationstool von 0.2 SQLite nach 0.3 PostgreSQL
 - PostgreSQL-/pgvector-/RBAC-/Tenant-/Service-Integrationstests
 
-**Wichtig:** Der lokale Hash-Embedding-Provider ist eine technische Entwicklungsimplementierung für Vertrag, Persistenz und Retrieval-Orchestrierung. Er ist kein semantisches Produktionsmodell. Externe generative KI bleibt deaktiviert.
+**Wichtig:** Der lokale Hash-Embedding-Provider bleibt ausschließlich für Architektur- und Testläufe vorgesehen. Für den V2.0-Produktionspfad ist FastEmbed mit einem lokal bereitgestellten multilingualen Modell vorgesehen. Die Modellbereitstellung erfolgt separat und einmalig; der produktive Anwendungsstart nutzt local_files_only=True und führt keine Cloud-Inferenz aus. Externe generative KI bleibt deaktiviert.
 
 ## V0.2 lokal starten
 
@@ -106,6 +107,19 @@ python migrate_v02_sqlite_to_v03_postgres.py ./data/ccs_support.db \
 ```
 
 Übernommen werden – soweit in der Quelldatenbank vorhanden – Benutzer/Passworthashes, Tickets, Wissensartikel, Dokumente und Chunks, Assistenzläufe, Quellenreferenzen und Auditdaten. Artikel und Dokumentsegmente erhalten beim Import lokale V0.3-Embeddings. Die Migration verweigert den Start, wenn der Zielmandant bereits Fachdaten enthält.
+
+
+## Lokale semantische Suche (V2.0)
+
+Die Produktionsbaseline und die Offline-Provisionierung sind in [LOCAL-EMBEDDING-MODEL.md](docs/LOCAL-EMBEDDING-MODEL.md) beschrieben. Kurzablauf unter Windows:
+
+```powershell
+python -m pip install -r requirements.txt
+$env:CCS_EMBEDDING_CACHE_DIR = "C:\\ProgramData\\Compelec\\COMPELEC-ONE\\models\\embeddings"
+python scripts/provision_local_embedding.py
+```
+
+Für den Produktivbetrieb müssen CCS_EMBEDDING_PROVIDER=local-fastembed und derselbe CCS_EMBEDDING_CACHE_DIR gesetzt sein. Das Modell muss vor dem Start vorhanden sein. Bei fehlendem Modell bricht die Initialisierung ab; es gibt keinen Netzwerk-Fallback.
 
 ## Governance
 
