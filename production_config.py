@@ -134,8 +134,13 @@ def load_production_config() -> ProductionConfig:
         raise ProductionConfigError("; ".join(errors))
 
     if environment == "production":
-        if embedding_provider in {"local", "local-hash", "ccs-local-hash-v1"}:
-            errors.append("lokaler Hash-Embedding-Provider ist in Produktion verboten")
+        if embedding_provider != "local-fastembed":
+            errors.append(
+                "Produktion erfordert CCS_EMBEDDING_PROVIDER=local-fastembed; "
+                "Hash- und externe Embedding-Provider sind gesperrt"
+            )
+        if not os.getenv("CCS_EMBEDDING_CACHE_DIR", "").strip():
+            errors.append("CCS_EMBEDDING_CACHE_DIR muss für das lokale Produktionsmodell gesetzt sein")
         if parsed and parsed.hostname in {"localhost", "127.0.0.1"}:
             errors.append("Produktionsdatenbank darf nicht auf localhost zeigen")
 
