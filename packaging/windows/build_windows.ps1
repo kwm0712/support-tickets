@@ -37,6 +37,8 @@ $PyInstallerArgs = @(
   '--collect-all', 'streamlit',
   '--collect-all', 'altair',
   '--collect-all', 'pydeck',
+  '--collect-all', 'fastembed',
+  '--collect-all', 'onnxruntime',
   '--add-data', 'streamlit_v03.py;.',
   '--add-data', 'architecture.py;.',
   '--add-data', 'embedding.py;.',
