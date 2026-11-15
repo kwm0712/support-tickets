@@ -5,11 +5,13 @@ import streamlit as st
 
 from architecture import AuthorizationError
 from ccs_core import authenticate, get_license_status, initialize_database, record_audit
+from identity import AuthenticationError, IdentityRequest, OIDCIdentityProvider, TrustedHeaderIdentityProvider
+from production_config import load_production_config
 from v03_runtime import build_support_service
 
 
 st.set_page_config(
-    page_title="CCS Agent Support V0.3",
+    page_title="COMPELEC ONE Business",
     page_icon="🤖",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -45,15 +47,37 @@ PRIVACY_LABELS = {
 }
 
 
-def login_view() -> None:
-    st.title("CCS Agent Support V0.3")
-    st.caption("PostgreSQL · pgvector · Tenant/RBAC Architecture")
-    license_status = get_license_status()
-    if not license_status.valid:
-        st.error(license_status.message)
-        st.stop()
-    st.info(license_status.message)
+@st.cache_resource
+def _production_identity_provider():
+    cfg = load_production_config()
+    if cfg.identity_mode == "oidc":
+        return OIDCIdentityProvider(
+            issuer=cfg.oidc_issuer,
+            audience=cfg.oidc_audience,
+            jwks_url=cfg.oidc_jwks_url,
+            role_claim=cfg.oidc_role_claim,
+            tenant_claim=cfg.oidc_tenant_claim,
+            username_claim=cfg.oidc_username_claim,
+            role_map=cfg.oidc_role_map,
+            tenant_map=cfg.oidc_tenant_map,
+        )
+    return TrustedHeaderIdentityProvider(default_tenant_id=cfg.tenant_id, require_tenant_header=cfg.is_production, tenant_map=cfg.trusted_tenant_map)
 
+
+def _authenticate_production_ui() -> dict[str, str]:
+    provider = _production_identity_provider()
+    identity = provider.authenticate(IdentityRequest(headers=st.context.headers))
+    return {
+        "username": identity.username,
+        "display_name": identity.username,
+        "role": identity.role,
+        "tenant_id": identity.tenant_id,
+    }
+
+
+def login_view() -> None:
+    st.title("COMPELEC ONE Business")
+    st.caption("PostgreSQL · pgvector · Tenant/RBAC Architecture")
     with st.form("login_v03"):
         username = st.text_input("Benutzername", value="admin")
         password = st.text_input("Kennwort", type="password")
@@ -66,13 +90,13 @@ def login_view() -> None:
                 "support / Support-Start!\n"
                 "demo / Demo-Start!"
             )
-            st.caption("Lokale Identität bleibt in V0.3 als SSO-Kompatibilitätspfad bestehen.")
+            st.caption("Lokale Anmeldung ist derzeit der Entwicklungs- und Kompatibilitätspfad.")
 
     if submitted:
         user = authenticate(username, password)
         if user:
             st.session_state.user = user
-            record_audit(user["username"], "LOGIN", "session", details="V0.3 client")
+            record_audit(user["username"], "LOGIN", "session", details="COMPELEC ONE Business client")
             st.rerun()
         st.error("Anmeldung fehlgeschlagen.")
 
@@ -83,20 +107,49 @@ except RuntimeError as exc:
     st.error(f"Sicherheits- oder Konfigurationsfehler: {exc}")
     st.stop()
 
-if "user" not in st.session_state:
-    login_view()
+license_status = get_license_status()
+if not license_status.valid:
+    st.error(license_status.message)
     st.stop()
+st.info(license_status.message)
+
+try:
+    production_config = load_production_config()
+except Exception as exc:
+    st.error(f"Produktionskonfiguration konnte nicht geladen werden: {exc}")
+    st.stop()
+
+if production_config.is_production:
+    try:
+        authenticated_user = _authenticate_production_ui()
+        previous_user = st.session_state.get("user")
+        if previous_user != authenticated_user:
+            record_audit(
+                authenticated_user["username"],
+                "LOGIN",
+                "session",
+                details=f"COMPELEC ONE Business {production_config.identity_mode}",
+            )
+        st.session_state.user = authenticated_user
+    except AuthenticationError:
+        st.session_state.pop("user", None)
+        st.error("Anmeldung über den Unternehmens-Identity-Provider fehlgeschlagen. Bitte melden Sie sich über das freigegebene Unternehmensportal an.")
+        st.stop()
+else:
+    if "user" not in st.session_state:
+        login_view()
+        st.stop()
 
 user = st.session_state.user
 try:
     service = build_support_service(user)
 except Exception as exc:
-    st.error(f"V0.3 PostgreSQL-Laufzeit konnte nicht initialisiert werden: {exc}")
+    st.error(f"PostgreSQL-Laufzeit konnte nicht initialisiert werden: {exc}")
     st.stop()
 
 with st.sidebar:
-    st.markdown("## CCS Agent Support")
-    st.caption("V0.3.0-dev · PostgreSQL/pgvector")
+    st.markdown("## COMPELEC ONE Business")
+    st.caption("Support & Knowledge · PostgreSQL/pgvector")
     st.write(f"**{user['display_name']}**")
     st.caption(f"Rolle: {user['role']}")
     st.caption(f"Datenschutzobergrenze: {PRIVACY_LABELS[service.privacy_ceiling]}")
@@ -109,11 +162,11 @@ with st.sidebar:
     st.success("PostgreSQL aktiv")
     st.caption("Embedding: ccs-local-hash-v1 · lokal")
     if st.button("Abmelden", use_container_width=True):
-        record_audit(user["username"], "LOGOUT", "session", details="V0.3 client")
+        record_audit(user["username"], "LOGOUT", "session", details="COMPELEC ONE Business client")
         st.session_state.clear()
         st.rerun()
 
-st.title("CCS Agent Support V0.3")
+st.title("COMPELEC ONE Business")
 st.caption("Service-/Repository-Architektur mit tenant-sicherem Hybrid Retrieval")
 
 try:
@@ -132,7 +185,7 @@ try:
         else:
             st.info("Noch keine Tickets im aktiven Mandanten.")
         st.info(
-            "V0.3 erzwingt Rollen-, Datenschutz- und Mandantengrenzen in der "
+            "Die Anwendung erzwingt Rollen-, Datenschutz- und Mandantengrenzen in der "
             "Service-/Repository-Schicht. Streamlit ist nur Präsentationsschicht."
         )
 

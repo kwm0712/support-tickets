@@ -11,6 +11,8 @@ from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Iterator, Optional
 
+from license_verifier import LicenseValidationError, load_and_verify_runtime_license
+
 APP_DIR = Path(os.getenv("CCS_DATA_DIR", Path(__file__).parent / "data"))
 DB_PATH = APP_DIR / "ccs_support.db"
 
@@ -460,18 +462,20 @@ def get_license_status() -> LicenseStatus:
             )
 
     if mode == "licensed":
-        if expires_on and expires_on < date.today():
+        try:
+            verified = load_and_verify_runtime_license()
+        except LicenseValidationError as exc:
             return LicenseStatus(
                 mode=mode,
                 valid=False,
-                message=f"Lizenz abgelaufen am {expires_on.strftime('%d.%m.%Y')}.",
-                expires_on=expires_on,
+                message=f"Enterprise-Lizenz ungültig: {exc}",
+                expires_on=None,
             )
         return LicenseStatus(
             mode=mode,
             valid=True,
-            message="Lizenzmodus aktiv.",
-            expires_on=expires_on,
+            message=f"Signierte Enterprise-Lizenz aktiv · Mandant: {verified.tenant_id}",
+            expires_on=verified.expires_at.date(),
         )
 
     return LicenseStatus(

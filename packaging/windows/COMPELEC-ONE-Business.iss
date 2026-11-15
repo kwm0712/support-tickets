@@ -1,6 +1,13 @@
 #define MyAppName "COMPELEC ONE Business"
-#define MyAppVersion "1.0.0-dev"
-#define MyAppNumericVersion "1.0.0.0"
+#define MyAppVersion GetEnv("COMPELEC_BUILD_VERSION")
+#define MyAppNumericVersion GetEnv("COMPELEC_BUILD_NUMERIC_VERSION")
+
+#if MyAppVersion == ""
+  #error "COMPELEC_BUILD_VERSION fehlt. Build bitte ueber build_windows.ps1 starten."
+#endif
+#if MyAppNumericVersion == ""
+  #error "COMPELEC_BUILD_NUMERIC_VERSION fehlt. Build bitte ueber build_windows.ps1 starten."
+#endif
 #define MyAppPublisher "Compelec Computersysteme GmbH"
 #define MyAppExeName "COMPELEC-ONE-Business.exe"
 
