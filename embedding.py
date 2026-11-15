@@ -61,6 +61,59 @@ class DeterministicLocalEmbeddingProvider:
         return EmbeddingVector(self.model_id, self.dimensions, tuple(values))
 
 
+class LocalFastEmbedProvider:
+    """Offline-only multilingual semantic embeddings using FastEmbed/ONNX.
+
+    The model must be provisioned before production startup. Runtime inference is
+    explicitly local_files_only=True: no model or query is sent to a remote service.
+    """
+
+    model_name = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+    model_id = "fastembed:sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+    dimensions = 384
+
+    def __init__(self, *, cache_dir: str) -> None:
+        from pathlib import Path
+
+        cache = Path(cache_dir).expanduser()
+        if not cache.is_dir():
+            raise RuntimeError(
+                "Lokaler Embedding-Modellordner fehlt. Modell zuerst mit "
+                "scripts/provision_local_embedding.py bereitstellen."
+            )
+        try:
+            from fastembed import TextEmbedding
+        except ImportError as exc:
+            raise RuntimeError(
+                "Lokale semantische Suche benötigt das Paket 'fastembed'."
+            ) from exc
+        try:
+            self._model = TextEmbedding(
+                model_name=self.model_name,
+                cache_dir=str(cache),
+                local_files_only=True,
+            )
+        except Exception as exc:
+            raise RuntimeError(
+                "Lokales Embedding-Modell ist nicht vollständig vorhanden oder kann "
+                "offline nicht geladen werden. Keine Netzwerk-Fallbacks werden aktiviert."
+            ) from exc
+
+    def embed(self, text: str) -> EmbeddingVector:
+        if not text or not text.strip():
+            return EmbeddingVector(self.model_id, self.dimensions, tuple(0.0 for _ in range(self.dimensions)))
+        try:
+            raw = next(iter(self._model.embed([text])))
+            values = tuple(float(value) for value in raw)
+        except Exception as exc:
+            raise RuntimeError("Lokale semantische Embedding-Berechnung fehlgeschlagen.") from exc
+        if len(values) != self.dimensions or not all(math.isfinite(value) for value in values):
+            raise RuntimeError(
+                f"Lokales Embedding-Modell lieferte keinen gültigen {self.dimensions}-D-Vektor."
+            )
+        return EmbeddingVector(self.model_id, self.dimensions, values)
+
+
 class OpenAICompatibleEmbeddingProvider:
     """Production-oriented embedding provider using an OpenAI-compatible HTTP API.
 
@@ -175,6 +228,11 @@ def build_embedding_provider_from_env() -> EmbeddingProvider:
     provider = os.getenv("CCS_EMBEDDING_PROVIDER", "local-hash").strip().lower()
     if provider in {"local", "local-hash", "ccs-local-hash-v1"}:
         return DeterministicLocalEmbeddingProvider()
+    if provider in {"local-fastembed", "fastembed"}:
+        cache_dir = os.getenv("CCS_EMBEDDING_CACHE_DIR", "").strip()
+        if not cache_dir:
+            raise RuntimeError("CCS_EMBEDDING_CACHE_DIR muss für lokales FastEmbed gesetzt sein.")
+        return LocalFastEmbedProvider(cache_dir=cache_dir)
     if provider not in {"openai-compatible", "production"}:
         raise RuntimeError(f"Unbekannter Embedding-Provider: {provider}")
 
